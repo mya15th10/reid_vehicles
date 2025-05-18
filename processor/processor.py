@@ -88,7 +88,7 @@ def do_train(cfg,
                 raise e  # Dừng huấn luyện để xử lý lỗi
             
             with amp.autocast(enabled=True):
-                score, feat = model(img, target, cam_label=target_cam, view_label=target_view)
+                score, feat = model(img, target, cam_label=target_cam)
                 loss = loss_fn(score, feat, target)
 
             scaler.scale(loss).backward()
@@ -152,7 +152,7 @@ def do_train(cfg,
                             else:
                                 target_view = torch.tensor(target_view, dtype=torch.long).to(device)
                             
-                            feat = model(img, cam_label=camids, view_label=target_view)
+                            feat = model(img, cam_label=camids)
                             evaluator.update((feat, vid, camid))
                     cmc, mAP, _, _, _, _, _ = evaluator.compute()
                     logger.info("Validation Results - Epoch: {}".format(epoch))
@@ -178,7 +178,7 @@ def do_train(cfg,
                         else:
                             target_view = torch.tensor(target_view, dtype=torch.long).to(device)
                         
-                        feat = model(img, cam_label=camids, view_label=target_view)
+                        feat = model(img, cam_label=camids)
                         evaluator.update((feat, vid, camid))
                 cmc, mAP, _, _, _, _, _ = evaluator.compute()
                 logger.info("Validation Results - Epoch: {}".format(epoch))
@@ -227,7 +227,7 @@ def do_inference(cfg,
             else:
                 target_view = torch.tensor(target_view, dtype=torch.long).to(device)
             
-            feat = model(img, cam_label=camids, view_label=target_view)
+            feat = model(img, cam_label=camids)
             evaluator.update((feat, pid, camid))
 
     cmc, mAP, _, _, _, _, _ = evaluator.compute()
