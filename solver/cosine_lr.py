@@ -3,6 +3,10 @@ import torch
 from torch.optim.lr_scheduler import _LRScheduler
 
 class CosineLRScheduler(_LRScheduler):
+    """
+    - Adjust the learning rate according to the cosine cycle
+    - Help the model better convergence in the training process
+"""
     def __init__(self,
                  optimizer,
                  t_initial,
@@ -56,7 +60,10 @@ class CosineLRScheduler(_LRScheduler):
                 lrs = [self.lr_min for _ in self.base_values]
         return lrs
 
-    def step(self, epoch):
+    def step(self, epoch=None):
+        if epoch is None:
+            epoch = self.last_epoch + 1
+            
         if self.t_in_epochs:
             self.last_epoch = math.floor(epoch)
         else:
