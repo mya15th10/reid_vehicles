@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 from .resnet import ResNet_IBN as ResNet, Bottleneck_IBN as Bottleneck
-from models.cnn_transformer import ResNetTransformer
+from .cnn_transformer import ResNetTransformer 
 import copy
-from ..loss.metric_learning import Arcface, Cosface, AMSoftmax, CircleLoss
+from loss.metric_learning import Arcface, Cosface, AMSoftmax, CircleLoss
 def shuffle_unit(features, shift, group, begin=1):
 
     batchsize = features.size(0)

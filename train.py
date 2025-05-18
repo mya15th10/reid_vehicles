@@ -1,3 +1,6 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from utils.logger import setup_logger
 from datasets import make_dataloader
 from models import make_model
