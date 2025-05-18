@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from resnet import ResNet, Bottleneck
+from .resnet import ResNet_IBN as ResNet, Bottleneck_IBN as Bottleneck
 from models.cnn_transformer import ResNetTransformer
 import copy
 from ..loss.metric_learning import Arcface, Cosface, AMSoftmax, CircleLoss
