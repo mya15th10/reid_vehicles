@@ -40,11 +40,7 @@ class CosineLRScheduler(_LRScheduler):
         self.base_values = [group['lr'] for group in self.optimizer.param_groups]
         self.update_groups(self.base_values)
 
-        self.t_in_epochs = t_in_epochs
-        self.noise_range_t = noise_range_t
-        self.noise_pct = noise_pct
-        self.noise_std = noise_std
-        self.noise_seed = noise_seed
+
 
         if initialize:
             self.step(0)
