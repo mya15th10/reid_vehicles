@@ -18,7 +18,10 @@ class CosineLRScheduler(_LRScheduler):
                  noise_std=1.0,
                  noise_seed=42,
                  initialize=True):
-        # Note: last_epoch=-1 là mặc định trong _LRScheduler
+        # QUAN TRỌNG: Gọi constructor của lớp cha trước
+        super(CosineLRScheduler, self).__init__(optimizer, -1)
+
+        # Lưu trữ các tham số
         self.t_initial = t_initial
         self.t_mul = t_mul
         self.lr_min = lr_min
@@ -26,22 +29,24 @@ class CosineLRScheduler(_LRScheduler):
         self.cycle_limit = cycle_limit
         self.warmup_lr_init = warmup_lr_init
         self.warmup_t = warmup_t
-        self.t_in_epochs = t_in_epochs   
+        self.t_in_epochs = t_in_epochs
         self.noise_range_t = noise_range_t
         self.noise_pct = noise_pct
         self.noise_std = noise_std
         self.noise_seed = noise_seed
-        
-        # Gọi super().__init__ sau khi gán tất cả các thuộc tính
-        super(CosineLRScheduler, self).__init__(optimizer, -1)
 
+        # Lưu trữ các giá trị base learning rate
         self.base_values = [group['lr'] for group in self.optimizer.param_groups]
         self.update_groups(self.base_values)
 
+        # Khởi tạo scheduler nếu cần
         if initialize:
             self.step(0)
 
     def _get_lr(self, t):
+        # Đảm bảo self.base_values tồn tại và có giá trị
+        if not hasattr(self, 'base_values') or self.base_values is None:
+            self.base_values = [group['lr'] for group in self.optimizer.param_groups]
         
         if t < self.warmup_t:
             lrs = [self.warmup_lr_init + t * (b - self.warmup_lr_init) / self.warmup_t for b in self.base_values]
@@ -53,22 +58,26 @@ class CosineLRScheduler(_LRScheduler):
                 lrs = [self.lr_min for _ in self.base_values]
         return lrs
 
+    def get_lr(self):
+        # Phương thức này được gọi bởi _LRScheduler
+        return self._get_lr(self.last_epoch)
+
     def step(self, epoch=None):
-        # Sửa phương thức step để thêm kiểm tra thuộc tính
+        # Xử lý tham số epoch đúng cách
         if epoch is None:
             epoch = self.last_epoch + 1
         
-        # Thêm kiểm tra tồn tại của t_in_epochs để đề phòng
-        if hasattr(self, 't_in_epochs') and self.t_in_epochs:
+        # Đảm bảo self.t_in_epochs tồn tại
+        if not hasattr(self, 't_in_epochs'):
+            self.t_in_epochs = True
+            
+        if self.t_in_epochs:
             self.last_epoch = math.floor(epoch)
         else:
             self.last_epoch = self.last_epoch + 1
         
-        lrs = self._get_lr(self.last_epoch)
-        for param_group, lr in zip(self.optimizer.param_groups, lrs):
+        for param_group, lr in zip(self.optimizer.param_groups, self.get_lr()):
             param_group['lr'] = lr
-        
-        return lrs
 
     def update_groups(self, values):
         for param_group, value in zip(self.optimizer.param_groups, values):
