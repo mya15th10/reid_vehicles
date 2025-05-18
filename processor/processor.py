@@ -29,7 +29,7 @@ def do_train(cfg,
     logger.info('start training')
     _LOCAL_PROCESS_GROUP = None
     if device:
-        model.to(local_rank)
+        model.to(device)  # Sửa từ local_rank thành device
         if torch.cuda.device_count() > 1 and cfg.MODEL.DIST_TRAIN:
             print('Using {} GPUs for training'.format(torch.cuda.device_count()))
             model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank], find_unused_parameters=True)
@@ -52,10 +52,21 @@ def do_train(cfg,
             optimizer_center.zero_grad()
             img = img.to(device)
             target = vid.to(device)
-            target_cam = target_cam.to(device)
-            target_view = target_view.to(device)
+            
+            # Xử lý target_cam - đảm bảo là tensor
+            if torch.is_tensor(target_cam):
+                target_cam = target_cam.to(device)
+            else:
+                target_cam = torch.tensor(target_cam, dtype=torch.long).to(device)
+            
+            # Xử lý target_view - nếu đã là tensor thì chuyển nó đến device
+            if torch.is_tensor(target_view):
+                target_view = target_view.to(device)
+            else:
+                target_view = torch.tensor(target_view, dtype=torch.long).to(device)
+            
             with amp.autocast(enabled=True):
-                score, feat = model(img, target, cam_label=target_cam, view_label=target_view )
+                score, feat = model(img, target, cam_label=target_cam, view_label=target_view)
                 loss = loss_fn(score, feat, target)
 
             scaler.scale(loss).backward()
@@ -106,8 +117,19 @@ def do_train(cfg,
                     for n_iter, (img, vid, camid, camids, target_view) in enumerate(val_loader):
                         with torch.no_grad():
                             img = img.to(device)
-                            camids = camids.to(device)
-                            target_view = target_view.to(device)
+                            
+                            # Xử lý camids - đảm bảo là tensor
+                            if torch.is_tensor(camids):
+                                camids = camids.to(device)
+                            else:
+                                camids = torch.tensor(camids, dtype=torch.long).to(device)
+                            
+                            # Xử lý target_view - nếu đã là tensor thì chuyển nó đến device
+                            if torch.is_tensor(target_view):
+                                target_view = target_view.to(device)
+                            else:
+                                target_view = torch.tensor(target_view, dtype=torch.long).to(device)
+                            
                             feat = model(img, cam_label=camids, view_label=target_view)
                             evaluator.update((feat, vid, camid))
                     cmc, mAP, _, _, _, _, _ = evaluator.compute()
@@ -121,8 +143,19 @@ def do_train(cfg,
                 for n_iter, (img, vid, camid, camids, target_view) in enumerate(val_loader):
                     with torch.no_grad():
                         img = img.to(device)
-                        camids = camids.to(device)
-                        target_view = target_view.to(device)
+                        
+                        # Xử lý camids - đảm bảo là tensor
+                        if torch.is_tensor(camids):
+                            camids = camids.to(device)
+                        else:
+                            camids = torch.tensor(camids, dtype=torch.long).to(device)
+                        
+                        # Xử lý target_view - nếu đã là tensor thì chuyển nó đến device
+                        if torch.is_tensor(target_view):
+                            target_view = target_view.to(device)
+                        else:
+                            target_view = torch.tensor(target_view, dtype=torch.long).to(device)
+                        
                         feat = model(img, cam_label=camids, view_label=target_view)
                         evaluator.update((feat, vid, camid))
                 cmc, mAP, _, _, _, _, _ = evaluator.compute()
@@ -139,9 +172,6 @@ def do_inference(cfg,
                  num_query):
     """
     Evaluation of the model on Validation
-
-    Args:
-
     """
     device = "cuda"
     logger = logging.getLogger("transreid.test")
@@ -158,16 +188,25 @@ def do_inference(cfg,
         model.to(device)
 
     model.eval()
-    img_path_list = []
 
     for n_iter, (img, pid, camid, camids, target_view) in enumerate(val_loader):
         with torch.no_grad():
             img = img.to(device)
-            camids = camids.to(device)
-            target_view = target_view.to(device)
+            
+            # Xử lý camids - đảm bảo là tensor
+            if torch.is_tensor(camids):
+                camids = camids.to(device)
+            else:
+                camids = torch.tensor(camids, dtype=torch.long).to(device)
+            
+            # Xử lý target_view - nếu đã là tensor thì chuyển nó đến device
+            if torch.is_tensor(target_view):
+                target_view = target_view.to(device)
+            else:
+                target_view = torch.tensor(target_view, dtype=torch.long).to(device)
+            
             feat = model(img, cam_label=camids, view_label=target_view)
             evaluator.update((feat, pid, camid))
-
 
     cmc, mAP, _, _, _, _, _ = evaluator.compute()
     logger.info("Validation Results ")
