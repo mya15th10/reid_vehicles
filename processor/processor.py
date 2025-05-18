@@ -56,7 +56,7 @@ def do_train(cfg,
             target_view = target_view.to(device)
             with amp.autocast(enabled=True):
                 score, feat = model(img, target, cam_label=target_cam, view_label=target_view )
-                loss = loss_fn(score, feat, target, target_cam)
+                loss = loss_fn(score, feat, target)
 
             scaler.scale(loss).backward()
 
@@ -103,7 +103,7 @@ def do_train(cfg,
             if cfg.MODEL.DIST_TRAIN:
                 if dist.get_rank() == 0:
                     model.eval()
-                    for n_iter, (img, vid, camid, camids, target_view, _) in enumerate(val_loader):
+                    for n_iter, (img, vid, camid, camids, target_view) in enumerate(val_loader):
                         with torch.no_grad():
                             img = img.to(device)
                             camids = camids.to(device)
@@ -118,7 +118,7 @@ def do_train(cfg,
                     torch.cuda.empty_cache()
             else:
                 model.eval()
-                for n_iter, (img, vid, camid, camids, target_view, _) in enumerate(val_loader):
+                for n_iter, (img, vid, camid, camids, target_view) in enumerate(val_loader):
                     with torch.no_grad():
                         img = img.to(device)
                         camids = camids.to(device)
@@ -141,7 +141,7 @@ def do_inference(cfg,
     Evaluation of the model on Validation
 
     Args:
-        
+
     """
     device = "cuda"
     logger = logging.getLogger("transreid.test")
@@ -160,14 +160,14 @@ def do_inference(cfg,
     model.eval()
     img_path_list = []
 
-    for n_iter, (img, pid, camid, camids, target_view, imgpath) in enumerate(val_loader):
+    for n_iter, (img, pid, camid, camids, target_view) in enumerate(val_loader):
         with torch.no_grad():
             img = img.to(device)
             camids = camids.to(device)
             target_view = target_view.to(device)
             feat = model(img, cam_label=camids, view_label=target_view)
             evaluator.update((feat, pid, camid))
-            img_path_list.extend(imgpath)
+
 
     cmc, mAP, _, _, _, _, _ = evaluator.compute()
     logger.info("Validation Results ")
