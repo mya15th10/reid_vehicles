@@ -96,10 +96,11 @@ def train_collate_fn(batch):
     imgs, pids, camids, viewids, _ = zip(*batch)
     pids = torch.tensor(pids, dtype=torch.int64)
     camids = torch.tensor(camids, dtype=torch.int64)
-    viewids = torch.tensor(viewids, dtype=torch.int64)
+    viewids = torch.tensor([int(v) if isinstance(v, str) else v for v in viewids], dtype=torch.int64)
     return torch.stack(imgs, dim=0), pids, camids, viewids
 
 
 def val_collate_fn(batch):
     imgs, pids, camids, viewids, img_paths = zip(*batch)
+    viewids = torch.tensor([int(v) if isinstance(v, str) else v for v in viewids], dtype=torch.int64)
     return torch.stack(imgs, dim=0), pids, camids, viewids, img_paths
