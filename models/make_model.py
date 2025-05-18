@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from .resnet import ResNet_IBN as ResNet, Bottleneck_IBN as Bottleneck
+from .resnet import resnet50_ibn_a
 from .cnn_transformer import ResNetTransformer 
 import copy
 from loss.metric_learning import Arcface, Cosface, AMSoftmax, CircleLoss
@@ -59,16 +59,14 @@ class Backbone(nn.Module):
 
         if model_name == 'resnet50':
             self.in_planes = 2048
-            self.base = ResNet(last_stride=last_stride,
-                               block=Bottleneck,
-                               layers=[3, 4, 6, 3])
+            self.base = resnet50_ibn_a(last_stride=last_stride, pretrained=(pretrain_choice == 'imagenet'))
+            print('using resnet50-ibn-a as a backbone')
+
             print('using resnet50 as a backbone')
         else:
             print('unsupported backbone! but got {}'.format(model_name))
 
-        if pretrain_choice == 'imagenet':
-            self.base.load_param(model_path)
-            print('Loading pretrained ImageNet model......from {}'.format(model_path))
+
 
         self.gap = nn.AdaptiveAvgPool2d(1)
         self.num_classes = num_classes
@@ -127,13 +125,10 @@ class build_cnn_transformer(nn.Module):
         self.neck_feat = cfg.TEST.NECK_FEAT
         
         # CNN backbone
-        self.base = ResNet(last_stride=cfg.MODEL.LAST_STRIDE,
-                         block=Bottleneck,
-                         layers=[3, 4, 6, 3])
+        self.base = resnet50_ibn_a(last_stride=cfg.MODEL.LAST_STRIDE, 
+                                pretrained=(pretrain_choice == 'imagenet'))
         
-        if pretrain_choice == 'imagenet':
-            self.base.load_param(model_path)
-            print('Loading pretrained ImageNet model......from {}'.format(model_path))
+
         
         self.in_planes = 2048  # ResNet50 output dimension
         

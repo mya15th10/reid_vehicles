@@ -152,9 +152,9 @@ def resnet50_ibn_a(last_stride=1, pretrained=False):
 class VehicleReIDBackbone(nn.Module):
     def __init__(self, num_classes=576, embedding_dim=512, pretrained=True, last_stride=1):
         """
-        Backbone CNN cho mô hình nhận diện phương tiện
+        Backbone CNN for model vehicles re-identification 
         
-        Tham số:
+        Param
             num_classes (int): Số lượng phương tiện cần phân loại (576 cho tập train)
             embedding_dim (int): Kích thước vector đặc trưng
             pretrained (bool): Sử dụng pretrained weights từ ImageNet
@@ -216,4 +216,3 @@ class VehicleReIDBackbone(nn.Module):
         features = F.normalize(embedding_bn, p=2, dim=1)
         
         return features, logits
-

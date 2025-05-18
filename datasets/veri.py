@@ -47,7 +47,7 @@ class VeRi(BaseImageDataset):
         gallery = self._process_images(self.gallery_images, relabel=False)
 
         if verbose:
-            print("=> VeRi-776 loaded")
+            print("VeRi-776 loaded")
             self.print_dataset_statistics(train, query, gallery)
 
         self.train = train

@@ -16,11 +16,11 @@ class RandomErasing(object):
     """
 
     def __init__(self, probability=0.5, sl=0.02, sh=0.4, r1=0.3, r2=3.3, mean=(0.4914, 0.4822, 0.4465)):
-        self.probability = probability
-        self.mean = mean
-        self.sl = sl
-        self.sh = sh
-        self.r1 = r1
+        self.probability = probability #Probability of random erasing application
+        self.mean = mean #The value filled into the deleted area (default is the average value of Imagenet)
+        self.sl = sl #The minimum area of ​​the deleted area (% compared to the image)
+        self.sh = sh #The maximum area of ​​the deleted area (% compared to the image)
+        self.r1 = r1 #The frame ratio of the area is deleted
         self.r2 = r2
 
     def __call__(self, img):
