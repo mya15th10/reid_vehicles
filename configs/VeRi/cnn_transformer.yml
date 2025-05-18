@@ -14,7 +14,7 @@ MODEL:
   # SIE settings
   SIE_COE: 3.0
   SIE_CAMERA: True
-  SIE_VIEW: True
+  SIE_VIEW: False
   
 INPUT:
   SIZE_TRAIN: [256, 256]
