@@ -4,12 +4,32 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import os
 from config import cfg
 import argparse
-from datasets import make_dataloader
-from models import make_model
+from datasets.make_dataloader import make_dataloader
+from models.make_model import make_model      
 from processor import do_inference
 from utils.logger import setup_logger
 
+# Hàm để đảm bảo viewid luôn đúng định dạng
+def patch_dataloader_view():
+    """
+    Patch dataloader để đảm bảo target_view luôn là None hoặc tensor đúng định dạng
+    """
+    from datasets.make_dataloader import ImageDataset
+    
+    original_getitem = ImageDataset.__getitem__
+    
+    def patched_getitem(self, index):
+        img, pid, camid, viewid, img_path = original_getitem(self, index)
+        # Đảm bảo viewid là số nguyên
+        viewid = 0  # Cố định viewid là 0 - không sử dụng view
+        return img, pid, camid, viewid, img_path
+    
+    ImageDataset.__getitem__ = patched_getitem
+
 if __name__ == "__main__":
+    # Patch dataloader trước khi sử dụng
+    patch_dataloader_view()
+    
     parser = argparse.ArgumentParser(description="ReID Baseline Testing")
     parser.add_argument(
         "--config_file", default="", help="path to config file", type=str

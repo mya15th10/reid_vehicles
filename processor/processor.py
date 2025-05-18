@@ -59,33 +59,8 @@ def do_train(cfg,
             else:
                 target_cam = torch.tensor(target_cam, dtype=torch.long).to(device)
             
-            # Xử lý target_view  
-            try:
-                if not torch.is_tensor(target_view):
-                    # In ra thông tin debug
-                    print(f"Debug - target_view type: {type(target_view)}")
-                    if len(target_view) > 0:
-                        print(f"Debug - first element type: {type(target_view[0])}")
-                    
-                    # Xử lý viewid một cách nhất quán
-                    viewids = []
-                    for v in target_view:
-                        try:
-                            # Cố gắng chuyển đổi thành int
-                            viewids.append(int(v) if isinstance(v, str) else v)
-                        except (ValueError, TypeError):
-                            # Nếu không thể chuyển đổi, sử dụng giá trị mặc định (0)
-                            viewids.append(0)
-                            print(f"Warning: Couldn't convert viewid '{v}' to integer, using 0 instead")
-                    
-                    target_view = torch.tensor(viewids, dtype=torch.long).to(device)
-                else:
-                    target_view = target_view.to(device)
-            except Exception as e:
-                print(f"Critical error processing target_view: {e}")
-                print(f"target_view: {target_view}")
-                # Nếu không thể khắc phục, dừng huấn luyện (hoặc có thể sử dụng giải pháp tạm thời)
-                raise e  # Dừng huấn luyện để xử lý lỗi
+            # Đặt target_view = None vì SIE_VIEW đã bị tắt
+            target_view = None
             
             with amp.autocast(enabled=True):
                 score, feat = model(img, target, cam_label=target_cam)
@@ -146,11 +121,8 @@ def do_train(cfg,
                             else:
                                 camids = torch.tensor(camids, dtype=torch.long).to(device)
                             
-                            # Xử lý target_view - nếu đã là tensor thì chuyển nó đến device
-                            if torch.is_tensor(target_view):
-                                target_view = target_view.to(device)
-                            else:
-                                target_view = torch.tensor(target_view, dtype=torch.long).to(device)
+                            # Đặt target_view = None
+                            target_view = None
                             
                             feat = model(img, cam_label=camids)
                             evaluator.update((feat, vid, camid))
@@ -172,11 +144,8 @@ def do_train(cfg,
                         else:
                             camids = torch.tensor(camids, dtype=torch.long).to(device)
                         
-                        # Xử lý target_view - nếu đã là tensor thì chuyển nó đến device
-                        if torch.is_tensor(target_view):
-                            target_view = target_view.to(device)
-                        else:
-                            target_view = torch.tensor(target_view, dtype=torch.long).to(device)
+                        # Đặt target_view = None
+                        target_view = None
                         
                         feat = model(img, cam_label=camids)
                         evaluator.update((feat, vid, camid))
@@ -221,11 +190,8 @@ def do_inference(cfg,
             else:
                 camids = torch.tensor(camids, dtype=torch.long).to(device)
             
-            # Xử lý target_view - nếu đã là tensor thì chuyển nó đến device
-            if torch.is_tensor(target_view):
-                target_view = target_view.to(device)
-            else:
-                target_view = torch.tensor(target_view, dtype=torch.long).to(device)
+            # Đặt target_view = None
+            target_view = None
             
             feat = model(img, cam_label=camids)
             evaluator.update((feat, pid, camid))

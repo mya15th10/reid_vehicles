@@ -3,7 +3,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from utils.logger import setup_logger
 from datasets.make_dataloader import make_dataloader
-from models import make_model
+from models.make_model import make_model      
 from solver import make_optimizer
 from solver.scheduler_factory import create_scheduler
 from loss import make_loss
@@ -11,6 +11,7 @@ from processor import do_train
 import random
 import torch
 import numpy as np
+import traceback
 
 import argparse
 from config import cfg
@@ -75,17 +76,24 @@ if __name__ == '__main__':
     optimizer, optimizer_center = make_optimizer(cfg, model, center_criterion)
     
     scheduler = create_scheduler(cfg, optimizer)
-    
-    do_train(
-        cfg,
-        model,
-        center_criterion,
-        train_loader,
-        val_loader,
-        optimizer,
-        optimizer_center,
-        scheduler,
-        loss_func,
-        num_query, 
-        args.local_rank
-    )
+    try:
+        do_train(
+            cfg,
+            model,
+            center_criterion,
+            train_loader,
+            val_loader,
+            optimizer,
+            optimizer_center,
+            scheduler,
+            loss_func,
+            num_query, 
+            args.local_rank
+        )
+    except Exception as e:
+        print("\n\n========== DETAILED ERROR INFORMATION ==========")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        traceback.print_exc()
+        print("================================================\n\n")
+        raise e
