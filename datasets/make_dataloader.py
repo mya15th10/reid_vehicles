@@ -29,7 +29,9 @@ def make_dataloader(cfg):
 
     dataset = VeRi(root=cfg.DATASETS.ROOT_DIR)
     num_classes = dataset.num_train_pids
-    
+    # Lấy số lượng camera và view từ dataset
+    camera_num = 20
+    view_num = 1
     train_set = ImageDataset(dataset.train, train_transforms)
     
     if cfg.DATALOADER.SAMPLER == 'softmax':
@@ -50,7 +52,10 @@ def make_dataloader(cfg):
         num_workers=num_workers, collate_fn=val_collate_fn
     )
     
-    return train_loader, val_loader, len(dataset.query), num_classes
+    train_loader_normal = None  # Hoặc tạo một dataloader thứ hai nếu cần
+
+    
+    return train_loader, train_loader_normal, val_loader, len(dataset.query), num_classes, camera_num, view_num
 
 
 class ImageDataset(torch.utils.data.Dataset):

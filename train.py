@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from utils.logger import setup_logger
-from datasets import make_dataloader
+from datasets.make_dataloader import make_dataloader
 from models import make_model
 from solver import make_optimizer
 from solver.scheduler_factory import create_scheduler
@@ -11,7 +11,7 @@ from processor import do_train
 import random
 import torch
 import numpy as np
-import os
+
 import argparse
 from config import cfg
 
@@ -37,6 +37,8 @@ if __name__ == '__main__':
     if args.config_file != "":
         cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
+    cfg.DATASETS.ROOT_DIR = r'./data/raw'
+    print(f"Dataset path updated to: {cfg.DATASETS.ROOT_DIR}")
     cfg.freeze()
 
     set_seed(cfg.SOLVER.SEED)
