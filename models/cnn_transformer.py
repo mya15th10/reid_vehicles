@@ -187,8 +187,8 @@ class VehicleTransformer(nn.Module):
         
         if self.training:
             # For training, return logits and features
-            logits = self.classifier(features)
-            return features, logits
+
+            return features 
         else:
             # For inference, return normalized features
             features = F.normalize(features, p=2, dim=1)
