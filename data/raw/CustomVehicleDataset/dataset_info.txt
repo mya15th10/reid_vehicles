@@ -1,0 +1,19 @@
+Custom Vehicle Re-ID Dataset
+========================================
+Generate filename: vehicleID_cameraID_cropID.jpg
+
+Dataset Statistics:
+Total vehicles: 377
+Train vehicles: 265
+Query vehicles: 75
+Test vehicles: 37
+
+Camera Information:
+Camera 1: Back view (dataset_11)
+Camera 2: Front view (dataset_21)
+
+Vehicle Types:
+bicycle: 2482
+car: 241
+truck: 14
+bus: 70

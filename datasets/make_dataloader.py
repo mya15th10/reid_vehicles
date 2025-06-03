@@ -2,7 +2,7 @@ import torch
 import torchvision.transforms as T
 from torch.utils.data import DataLoader
 
-from .veri import VeRi
+from .custom_dataset import CustomVehicleDataset  # Import your custom dataset
 from .bases import BaseImageDataset
 from .samplers import RandomIdentitySampler
 from .preprocessing import RandomErasing
@@ -27,11 +27,14 @@ def make_dataloader(cfg):
 
     num_workers = cfg.DATALOADER.NUM_WORKERS
 
-    dataset = VeRi(root=cfg.DATASETS.ROOT_DIR)
+    # Use CustomVehicleDataset instead of VeRi
+    dataset = CustomVehicleDataset(root=cfg.DATASETS.ROOT_DIR)
     num_classes = dataset.num_train_pids
-    # Lấy số lượng camera và view từ dataset
-    camera_num = 20
-    view_num = 1
+    
+    # Camera and view numbers for your dataset
+    camera_num = 2  # 2 cameras (front and back views)
+    view_num = 1    # 1 view per camera
+    
     train_set = ImageDataset(dataset.train, train_transforms)
     
     if cfg.DATALOADER.SAMPLER == 'softmax':
@@ -52,9 +55,8 @@ def make_dataloader(cfg):
         num_workers=num_workers, collate_fn=val_collate_fn
     )
     
-    train_loader_normal = None  # Hoặc tạo một dataloader thứ hai nếu cần
+    train_loader_normal = None  # Not used in this implementation
 
-    
     return train_loader, train_loader_normal, val_loader, len(dataset.query), num_classes, camera_num, view_num
 
 

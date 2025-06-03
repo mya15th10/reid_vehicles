@@ -5,14 +5,24 @@ import copy
 import math
 
 def weights_init_kaiming(m):
+    """
+    Weight Initialization (Weight Initialization) uses Kaiming method
+    """
     classname = m.__class__.__name__
+    # Với lớp Linear (kết nối đầy đủ)
     if classname.find('Linear') != -1:
+        # Khởi tạo trọng số theo phân phối Kaiming, chế độ fan_out
         nn.init.kaiming_normal_(m.weight, a=0, mode='fan_out')
+        # Đặt bias về 0
         nn.init.constant_(m.bias, 0.0)
+    # Với lớp Convolution
     elif classname.find('Conv') != -1:
+        # Khởi tạo trọng số theo phân phối Kaiming, chế độ fan_in
         nn.init.kaiming_normal_(m.weight, a=0, mode='fan_in')
+        # Đặt bias về 0 nếu tồn tại
         if m.bias is not None:
             nn.init.constant_(m.bias, 0.0)
+    # Với lớp Batch Normalization
     elif classname.find('BatchNorm') != -1:
         if m.affine:
             nn.init.constant_(m.weight, 1.0)
@@ -24,6 +34,9 @@ def weights_init_classifier(m):
         nn.init.normal_(m.weight, std=0.001)
         if m.bias:
             nn.init.constant_(m.bias, 0.0)
+
+
+            
 class SIELayer(nn.Module):
     def __init__(self, channels, camera_num=0, view_num=0, sie_xishu=1.0):
         super().__init__()

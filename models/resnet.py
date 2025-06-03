@@ -10,6 +10,10 @@ model_urls = {
 
 # IBN block - kết hợp Instance Normalization và Batch Normalization
 class IBN(nn.Module):
+    """
+    Instance Normalization (IN): Standardization according to the space of a photo
+    Batch Normalization (BN): Standardization on all Batch
+    """
     def __init__(self, planes):
         super(IBN, self).__init__()
         half1 = int(planes / 2)
