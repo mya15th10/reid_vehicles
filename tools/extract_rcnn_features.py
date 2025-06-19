@@ -41,7 +41,7 @@ class RCNNFeatureExtractor:
         from torchvision.models import resnet50
         resnet_model = resnet50(pretrained=True)
         # Remove the final FC layer, keep up to avgpool
-        self.backbone = torch.nn.Sequential(*list(resnet_model.children())[:-2])  # Remove avgpool + fc
+        self.backbone = torch.nn.Sequential(*list(resnet_model.children())[:-2]).to(self.device)  # Remove avgpool + fc
         # # FIXED: Add projection layer to get 256-dim features
         # self.feature_projector = nn.Sequential(
         #     nn.Linear(2048, 512),
