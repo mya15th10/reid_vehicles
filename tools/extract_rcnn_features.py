@@ -26,7 +26,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class RCNNFeatureExtractor:
-    """Extract 256-dim features from vehicle crops using R-CNN + projection"""
+    """Extract 2048-dim features from vehicle crops using R-CNN + projection"""
     
     def __init__(self, device='cuda' if torch.cuda.is_available() else 'cpu'):
         self.device = device
@@ -40,13 +40,13 @@ class RCNNFeatureExtractor:
         # Extract backbone for feature extraction
         self.backbone = self.model.backbone
         
-        # FIXED: Add projection layer to get 256-dim features
-        self.feature_projector = nn.Sequential(
-            nn.Linear(2048, 512),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(512, 256)
-        ).to(self.device)
+        # # FIXED: Add projection layer to get 256-dim features
+        # self.feature_projector = nn.Sequential(
+        #     nn.Linear(2048, 512),
+        #     nn.ReLU(),
+        #     nn.Dropout(0.1),
+        #     nn.Linear(512, 256)
+        # ).to(self.device)
         
         # Image preprocessing
         self.transform = T.Compose([
@@ -59,7 +59,7 @@ class RCNNFeatureExtractor:
         logger.info("R-CNN feature extractor initialized with 256-dim output")
     
     def extract_features(self, image_crop):
-        """Extract 256-dim features from image crop"""
+        """Extract 2048-dim features from image crop"""
         
         if len(image_crop.shape) == 3:
             image_tensor = self.transform(image_crop).unsqueeze(0).to(self.device)
@@ -81,10 +81,7 @@ class RCNNFeatureExtractor:
             pooled_features = F.adaptive_avg_pool2d(feature_map, (1, 1))
             feature_vector_2048 = pooled_features.flatten(1)  # [1, 2048]
             
-            # FIXED: Project to 256 dimensions
-            feature_vector_256 = self.feature_projector(feature_vector_2048)  # [1, 256]
-            
-            return feature_vector_256.cpu().numpy()[0]  # Return as numpy array
+            return feature_vector_2048.cpu().numpy()[0]
 
 class VideoProcessor:
     """Process videos and extract frames"""
