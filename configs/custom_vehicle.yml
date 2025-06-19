@@ -1,7 +1,7 @@
 MODEL:
   DEVICE: "cuda"
   NAME: 'feature_transformer'
-  FEATURE_DIM: 256  # Match your FPN feature dimension
+  FEATURE_DIM: 256  # FIXED: Match actual extracted feature dimension
   LAST_STRIDE: 1
   PRETRAIN_PATH: ''
   PRETRAIN_CHOICE: 'imagenet'
@@ -16,9 +16,9 @@ MODEL:
   IF_LABELSMOOTH: 'on'
   COS_LAYER: False
   
-  # Optimized for 256-dim features
+  # FIXED: Better hyperparameters for feature-based training
   DROP_PATH: 0.1
-  DROP_OUT: 0.0
+  DROP_OUT: 0.1  # Increased dropout
   ATT_DROP_RATE: 0.0
   TRANSFORMER_TYPE: 'None'
   STRIDE_SIZE: [16, 16]
@@ -42,8 +42,8 @@ DATALOADER:
 
 SOLVER:
   OPTIMIZER_NAME: "Adam"
-  MAX_EPOCHS: 100
-  BASE_LR: 3e-4       # Good starting point for 256-dim features
+  MAX_EPOCHS: 120  # FIXED: More epochs for feature-based training
+  BASE_LR: 1e-4    # FIXED: Lower learning rate for stability
   LARGE_FC_LR: False
   BIAS_LR_FACTOR: 1
   SEED: 1234
@@ -51,10 +51,10 @@ SOLVER:
   MARGIN: 0.3
   CENTER_LR: 0.5
   CENTER_LOSS_WEIGHT: 0.0005
-  WEIGHT_DECAY: 0.0005
-  WEIGHT_DECAY_BIAS: 0.0005
+  WEIGHT_DECAY: 1e-4  # FIXED: Reduced weight decay
+  WEIGHT_DECAY_BIAS: 1e-4
   GAMMA: 0.1
-  STEPS: [40, 70]
+  STEPS: [60, 90]  # FIXED: Adjusted learning rate schedule
   WARMUP_FACTOR: 0.01
   WARMUP_EPOCHS: 10
   WARMUP_METHOD: "linear"
@@ -63,14 +63,14 @@ SOLVER:
   CHECKPOINT_PERIOD: 20
   LOG_PERIOD: 50
   EVAL_PERIOD: 20
-  IMS_PER_BATCH: 64
+  IMS_PER_BATCH: 32  # FIXED: Smaller batch size for stability
 
 TEST:
-  IMS_PER_BATCH: 128
+  IMS_PER_BATCH: 64
   RE_RANKING: False
   WEIGHT: ""
   NECK_FEAT: 'after'
   FEAT_NORM: 'yes'
   EVAL: False
 
-OUTPUT_DIR: "./logs/custom_vehicle_reid_features"
+OUTPUT_DIR: "./logs/fixed_vehicle_reid_features"

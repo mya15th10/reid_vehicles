@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class RCNNFeatureExtractor:
-    """Extract R-CNN features from vehicle crops"""
+    """Extract 256-dim features from vehicle crops using R-CNN + projection"""
     
     def __init__(self, device='cuda' if torch.cuda.is_available() else 'cpu'):
         self.device = device
@@ -39,20 +39,27 @@ class RCNNFeatureExtractor:
         # Extract backbone for feature extraction
         self.backbone = self.model.backbone
         
+        # FIXED: Add projection layer to get 256-dim features
+        self.feature_projector = nn.Sequential(
+            nn.Linear(2048, 512),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(512, 256)
+        ).to(self.device)
+        
         # Image preprocessing
         self.transform = T.Compose([
             T.ToPILImage(),
-            T.Resize((224, 224)),  # Standard input size
+            T.Resize((224, 224)),
             T.ToTensor(),
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
-        logger.info("R-CNN feature extractor initialized")
+        logger.info("R-CNN feature extractor initialized with 256-dim output")
     
     def extract_features(self, image_crop):
         """Extract 256-dim features from image crop"""
         
-        # Preprocess image
         if len(image_crop.shape) == 3:
             image_tensor = self.transform(image_crop).unsqueeze(0).to(self.device)
         else:
@@ -60,23 +67,23 @@ class RCNNFeatureExtractor:
             return None
         
         with torch.no_grad():
-            # Extract features using backbone
+            # Extract 2048-dim features using backbone
             features = self.backbone(image_tensor)
             
-            # Get features from the last layer (typically 'pool' or '3')
             if isinstance(features, dict):
-                # Use the highest resolution feature map
                 feature_key = max(features.keys())
                 feature_map = features[feature_key]
             else:
                 feature_map = features
             
-            # Global average pooling to get fixed-size features
-            pooled_features = torch.nn.functional.adaptive_avg_pool2d(feature_map, (1, 1))
-            feature_vector = pooled_features.flatten(1)  # [1, feature_dim]
+            # Global average pooling
+            pooled_features = F.adaptive_avg_pool2d(feature_map, (1, 1))
+            feature_vector_2048 = pooled_features.flatten(1)  # [1, 2048]
             
-            return feature_vector.cpu().numpy()[0]  # Return as numpy array
-
+            # FIXED: Project to 256 dimensions
+            feature_vector_256 = self.feature_projector(feature_vector_2048)  # [1, 256]
+            
+            return feature_vector_256.cpu().numpy()[0]  # Return as numpy array
 class VideoProcessor:
     """Process videos and extract frames"""
     
@@ -165,7 +172,7 @@ class CVATAnnotationParser:
         return detections
 
 class VehicleReIDDatasetBuilder:
-    """Build ReID dataset from R-CNN features"""
+    """FIXED: Build ReID dataset with proper splits and consistent labels"""
     
     def __init__(self, output_dir: str):
         self.output_dir = Path(output_dir)
@@ -174,117 +181,93 @@ class VehicleReIDDatasetBuilder:
         self.feature_extractor = RCNNFeatureExtractor()
         self.video_processors = {}
         
-        # Statistics
-        self.stats = {
-            'total_detections': 0,
-            'successful_extractions': 0,
-            'failed_extractions': 0,
-            'vehicles_by_camera': defaultdict(set),
-            'cross_camera_vehicles': set()
-        }
-    
-    def add_video(self, video_path: str, camera_id: int):
-        """Add video processor for camera"""
-        self.video_processors[camera_id] = VideoProcessor(video_path)
-        logger.info(f"Added video processor for camera {camera_id}: {video_path}")
-    
-    def process_annotations(self, xml_files: Dict[str, int]):
-        """Process all XML annotations and extract features"""
+        # FIXED: Global vehicle ID mapping for consistency
+        self.global_vehicle_mapping = {}
+        self.next_pid = 0
         
-        all_detections = []
-        parser = CVATAnnotationParser()
+    def get_consistent_pid(self, vehicle_id: str) -> int:
+        """Get consistent PID for vehicle across all splits"""
+        if vehicle_id not in self.global_vehicle_mapping:
+            self.global_vehicle_mapping[vehicle_id] = self.next_pid
+            self.next_pid += 1
+        return self.global_vehicle_mapping[vehicle_id]
+    
+    def create_reid_splits(self, features_data):
+        """FIXED: Create proper ReID splits with cross-camera validation"""
         
-        # Parse all XML files
-        for xml_path, camera_id in xml_files.items():
-            if camera_id not in self.video_processors:
-                logger.error(f"No video processor for camera {camera_id}")
-                continue
+        # Group by vehicle ID
+        by_vehicle = defaultdict(list)
+        for item in features_data:
+            by_vehicle[item['vehicle_id']].append(item)
+        
+        train_data = []
+        query_data = []
+        gallery_data = []
+        
+        # Only use vehicles that appear in BOTH cameras
+        cross_camera_vehicles = []
+        for vehicle_id, detections in by_vehicle.items():
+            cameras = set(d['camera_id'] for d in detections)
+            if len(cameras) >= 2:  # Appears in multiple cameras
+                cross_camera_vehicles.append(vehicle_id)
+        
+        logger.info(f"Found {len(cross_camera_vehicles)} cross-camera vehicles")
+        
+        # Split cross-camera vehicles
+        for vehicle_id in cross_camera_vehicles:
+            detections = by_vehicle[vehicle_id]
             
-            detections = parser.parse_xml(xml_path, camera_id, self.video_processors[camera_id])
-            all_detections.extend(detections)
-        
-        logger.info(f"Total detections to process: {len(all_detections)}")
-        self.stats['total_detections'] = len(all_detections)
-        
-        # Extract features for each detection
-        features_data = []
-        
-        for detection in tqdm(all_detections, desc="Extracting R-CNN features"):
-            feature_data = self.extract_single_feature(detection)
-            if feature_data is not None:
-                features_data.append(feature_data)
-                self.stats['successful_extractions'] += 1
+            # Group by camera
+            by_camera = defaultdict(list)
+            for d in detections:
+                by_camera[d['camera_id']].append(d)
+            
+            # For each camera, use 70% for training, 30% for test
+            for camera_id, cam_detections in by_camera.items():
+                np.random.shuffle(cam_detections)
+                train_split = int(0.7 * len(cam_detections))
                 
-                # Update statistics
-                vehicle_id = detection['vehicle_id']
-                camera_id = detection['camera_id']
-                self.stats['vehicles_by_camera'][camera_id].add(vehicle_id)
-            else:
-                self.stats['failed_extractions'] += 1
+                train_data.extend(cam_detections[:train_split])
+                test_detections = cam_detections[train_split:]
+                
+                # Split test data: even cameras -> query, odd cameras -> gallery
+                if camera_id % 2 == 0:
+                    query_data.extend(test_detections)
+                else:
+                    gallery_data.extend(test_detections)
         
-        # Find cross-camera vehicles
-        camera_1_vehicles = self.stats['vehicles_by_camera'][1]
-        camera_2_vehicles = self.stats['vehicles_by_camera'][2]
-        self.stats['cross_camera_vehicles'] = camera_1_vehicles.intersection(camera_2_vehicles)
+        # FIXED: Apply consistent PID mapping
+        for split_data in [train_data, query_data, gallery_data]:
+            for item in split_data:
+                item['pid'] = self.get_consistent_pid(item['vehicle_id'])
         
-        logger.info(f"Successfully extracted {len(features_data)} feature vectors")
+        # Validate splits
+        train_pids = set(item['pid'] for item in train_data)
+        query_pids = set(item['pid'] for item in query_data)
+        gallery_pids = set(item['pid'] for item in gallery_data)
         
-        # Save features
-        self.save_features(features_data)
-        self.print_statistics()
+        overlap = query_pids.intersection(gallery_pids)
+        logger.info(f"Query-Gallery PID overlap: {len(overlap)} (should be > 0 for ReID)")
         
-        return features_data
-    
-    def extract_single_feature(self, detection):
-        """Extract R-CNN features for single detection"""
-        
-        camera_id = detection['camera_id']
-        frame_id = detection['frame_id']
-        bbox = detection['bbox']
-        
-        # Get video processor
-        video_processor = self.video_processors[camera_id]
-        
-        # Get frame
-        frame = video_processor.get_frame(frame_id)
-        if frame is None:
-            return None
-        
-        # Crop vehicle region
-        xtl, ytl, xbr, ybr = bbox
-        xtl, ytl, xbr, ybr = int(xtl), int(ytl), int(xbr), int(ybr)
-        
-        # Ensure coordinates are within frame bounds
-        h, w = frame.shape[:2]
-        xtl = max(0, min(xtl, w-1))
-        ytl = max(0, min(ytl, h-1))
-        xbr = max(xtl+1, min(xbr, w))
-        ybr = max(ytl+1, min(ybr, h))
-        
-        vehicle_crop = frame[ytl:ybr, xtl:xbr]
-        
-        if vehicle_crop.size == 0:
-            logger.warning(f"Empty crop for detection: {detection}")
-            return None
-        
-        # Extract R-CNN features
-        features = self.feature_extractor.extract_features(vehicle_crop)
-        if features is None:
-            return None
-        
-        # Create feature data entry
-        feature_data = {
-            'vehicle_id': detection['vehicle_id'],
-            'camera_id': detection['camera_id'],
-            'frame_id': detection['frame_id'],
-            'frame_name': detection['frame_name'],
-            'label': detection['label'],
-            'bbox': detection['bbox'],
-            'features': features,
-            'feature_dim': len(features)
+        # Save splits
+        splits = {
+            'train': train_data,
+            'query': query_data,
+            'gallery': gallery_data
         }
         
-        return feature_data
+        for split_name, data in splits.items():
+            split_file = self.output_dir / f'{split_name}_features.pkl'
+            with open(split_file, 'wb') as f:
+                pickle.dump(data, f)
+            logger.info(f"Saved {len(data)} {split_name} features to {split_file}")
+        
+        # Save PID mapping
+        mapping_file = self.output_dir / 'pid_mapping.json'
+        with open(mapping_file, 'w') as f:
+            json.dump(self.global_vehicle_mapping, f, indent=2)
+        
+        return splits
     
     def save_features(self, features_data):
         """Save extracted features to files"""
