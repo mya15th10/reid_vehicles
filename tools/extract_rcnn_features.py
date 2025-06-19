@@ -410,12 +410,12 @@ def main():
     # Configuration - Update paths for your dataset
     config = {
         'xml_files': {
-            './raw/CustomVehicleDataset/annotations_11.xml': 1,  # Camera 1
-            './raw/CustomVehicleDataset/annotations_21.xml': 2,  # Camera 2
+            'data/raw/CustomVehicleDataset/annotations_11.xml': 1,  # Camera 1
+            'data/raw/CustomVehicleDataset/annotations_21.xml': 2,  # Camera 2
         },
         'video_files': {
-            1: './raw/CustomVehicleDataset/video11.MOV',  # Camera 1
-            2: './raw/CustomVehicleDataset/video21.MOV',  # Camera 2
+            1: 'data/raw/CustomVehicleDataset/video11.MOV',  # Camera 1
+            2: 'data/raw/CustomVehicleDataset/video21.MOV',  # Camera 2
         },
         'output_dir': './data/processed/CustomVehicleDataset/features'
     }
