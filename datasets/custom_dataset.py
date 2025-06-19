@@ -60,12 +60,20 @@ class CustomVehicleDataset(BaseImageDataset):
         
         print(f"Loaded {len(feature_data)} feature vectors")
         
-        # Create pid to label mapping for training (relabeling)
+        # FIXED: Create consistent mapping across ALL splits
         if relabel:
-            pid_container = set()
-            for item in feature_data:
-                pid_container.add(item['vehicle_id'])
-            pid2label = {pid: label for label, pid in enumerate(sorted(pid_container))}
+            # Training: create mapping and store it
+            pid_container = sorted(set(item['vehicle_id'] for item in feature_data))
+            self.pid2label = {pid: label for label, pid in enumerate(pid_container)}
+            pid2label = self.pid2label
+        else:
+            # Query/Gallery: use SAME mapping as training
+            if hasattr(self, 'pid2label'):
+                pid2label = self.pid2label
+            else:
+                # Fallback: create consistent mapping
+                pid_container = sorted(set(item['vehicle_id'] for item in feature_data))
+                pid2label = {pid: label for label, pid in enumerate(pid_container)}
         
         dataset = []
         for item in feature_data:
@@ -73,21 +81,17 @@ class CustomVehicleDataset(BaseImageDataset):
             camera_id = item['camera_id']
             features = item['features']
             
-            # Convert camera ID to 0-indexed if needed
-            camid = camera_id - 1 if camera_id > 0 else camera_id
+            # Convert camera ID to 0-indexed
+            camid = max(0, camera_id - 1)
             
-            # Relabel vehicle IDs for training if needed
-            if relabel:
+            # FIXED: Use consistent mapping
+            if vehicle_id in pid2label:
                 pid = pid2label[vehicle_id]
             else:
-                # For query/gallery, use hash of vehicle_id to get consistent numeric ID
-                pid = hash(vehicle_id) % 10000  # Ensure positive integer
+                # For unseen vehicles, use a consistent fallback
+                pid = len(pid2label) + abs(hash(vehicle_id)) % 1000
             
-            # Use 0 as default viewid
             viewid = 0
-            
-            # Store as: (features, pid, camid, viewid)
-            # Features replace the image path in original format
             dataset.append((features, pid, camid, viewid))
         
         return dataset
