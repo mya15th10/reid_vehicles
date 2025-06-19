@@ -20,7 +20,7 @@ from collections import defaultdict
 import logging
 from tqdm import tqdm
 import json
-
+import torchvision.models
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -37,9 +37,11 @@ class RCNNFeatureExtractor:
         self.model.eval()
         self.model.to(self.device)
         
-        # Extract backbone for feature extraction
-        self.backbone = self.model.backbone
-        
+        # Use ResNet50 directly for 2048-dim features
+        from torchvision.models import resnet50
+        resnet_model = resnet50(pretrained=True)
+        # Remove the final FC layer, keep up to avgpool
+        self.backbone = torch.nn.Sequential(*list(resnet_model.children())[:-2])  # Remove avgpool + fc
         # # FIXED: Add projection layer to get 256-dim features
         # self.feature_projector = nn.Sequential(
         #     nn.Linear(2048, 512),
@@ -71,11 +73,8 @@ class RCNNFeatureExtractor:
             # Extract 2048-dim features using backbone
             features = self.backbone(image_tensor)
             
-            if isinstance(features, dict):
-                feature_key = max(features.keys())
-                feature_map = features[feature_key]
-            else:
-                feature_map = features
+            # ResNet50 returns tensor directly, not dict
+            feature_map = features
             
             # Global average pooling
             pooled_features = F.adaptive_avg_pool2d(feature_map, (1, 1))
