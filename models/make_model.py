@@ -301,3 +301,27 @@ class build_feature_transformer(nn.Module):
             return self.classifier.weight
         else:
             return None
+
+def make_model(cfg, num_class, camera_num, view_num):
+    """Create model based on configuration
+    
+    Args:
+        cfg: Configuration object
+        num_class: Number of classes for classification
+        camera_num: Number of cameras for SIE
+        view_num: Number of views for SIE
+        
+    Returns:
+        model: Built model ready for training/inference
+    """
+    if cfg.MODEL.NAME == 'feature_transformer':  
+        model = build_feature_transformer(num_class, camera_num, view_num, cfg)
+        print('===========Building Feature-based Transformer===========')
+    elif cfg.MODEL.NAME == 'cnn_transformer':  # Your old config might use this
+        model = build_feature_transformer(num_class, camera_num, view_num, cfg)
+        print('===========Building Feature-based Transformer (CNN name)============')
+    else:
+        # Fallback for other model types
+        raise NotImplementedError(f"Model '{cfg.MODEL.NAME}' not implemented. Available: 'feature_transformer'")
+    
+    return model
