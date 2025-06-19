@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
 """
-COMPLETE FIXED: R-CNN Feature Extraction Pipeline
-Extract features from video frames using CVAT annotations
+Extract 2048-dim features from vehicle crops using ResNet50 backbone
 """
 
 import xml.etree.ElementTree as ET
@@ -11,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as T
-from torchvision.models.detection import fasterrcnn_resnet50_fpn
+from torchvision.models import resnet50
 import pickle
 import os
 from pathlib import Path
@@ -20,37 +18,26 @@ from collections import defaultdict
 import logging
 from tqdm import tqdm
 import json
-import torchvision.models
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class RCNNFeatureExtractor:
-    """Extract 2048-dim features from vehicle crops using R-CNN + projection"""
+class ResNet50FeatureExtractor:
+    """Extract 2048-dim features from vehicle crops using ResNet50 backbone"""
     
     def __init__(self, device='cuda' if torch.cuda.is_available() else 'cpu'):
         self.device = device
         logger.info(f"Using device: {self.device}")
         
-        # Load pre-trained Faster R-CNN
-        self.model = fasterrcnn_resnet50_fpn(pretrained=True)
-        self.model.eval()
-        self.model.to(self.device)
-        
-        # Use ResNet50 directly for 2048-dim features
-        from torchvision.models import resnet50
+        # Load ResNet50 for 2048-dim features
         resnet_model = resnet50(pretrained=True)
-        # Remove the final FC layer, keep up to avgpool
-        self.backbone = torch.nn.Sequential(*list(resnet_model.children())[:-2]).to(self.device)  # Remove avgpool + fc
-        # # FIXED: Add projection layer to get 256-dim features
-        # self.feature_projector = nn.Sequential(
-        #     nn.Linear(2048, 512),
-        #     nn.ReLU(),
-        #     nn.Dropout(0.1),
-        #     nn.Linear(512, 256)
-        # ).to(self.device)
+        # Remove final avgpool and fc layers to get feature maps
+        self.backbone = torch.nn.Sequential(*list(resnet_model.children())[:-2])
+        self.backbone.eval()
+        self.backbone.to(self.device)
         
-        # Image preprocessing
+        # Image preprocessing (standard ImageNet preprocessing)
         self.transform = T.Compose([
             T.ToPILImage(),
             T.Resize((224, 224)),
@@ -58,29 +45,27 @@ class RCNNFeatureExtractor:
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
-        logger.info("R-CNN feature extractor initialized with 2048-dim output")
+        logger.info("ResNet50 feature extractor initialized with 2048-dim output")
     
     def extract_features(self, image_crop):
         """Extract 2048-dim features from image crop"""
         
-        if len(image_crop.shape) == 3:
-            image_tensor = self.transform(image_crop).unsqueeze(0).to(self.device)
-        else:
+        if len(image_crop.shape) != 3:
             logger.warning(f"Unexpected image shape: {image_crop.shape}")
             return None
         
+        # Preprocess image
+        image_tensor = self.transform(image_crop).unsqueeze(0).to(self.device)
+        
         with torch.no_grad():
-            # Extract 2048-dim features using backbone
-            features = self.backbone(image_tensor)
+            # Extract feature maps using ResNet50 backbone
+            feature_maps = self.backbone(image_tensor)  # [1, 2048, 7, 7]
             
-            # ResNet50 returns tensor directly, not dict
-            feature_map = features
+            # Global average pooling to get 2048-dim vector
+            pooled_features = F.adaptive_avg_pool2d(feature_maps, (1, 1))  # [1, 2048, 1, 1]
+            feature_vector = pooled_features.flatten(1)  # [1, 2048]
             
-            # Global average pooling
-            pooled_features = F.adaptive_avg_pool2d(feature_map, (1, 1))
-            feature_vector_2048 = pooled_features.flatten(1)  # [1, 2048]
-            
-            return feature_vector_2048.cpu().numpy()[0]
+            return feature_vector.cpu().numpy()[0]  # Return as numpy array [2048]
 
 class VideoProcessor:
     """Process videos and extract frames"""
@@ -170,16 +155,16 @@ class CVATAnnotationParser:
         return detections
 
 class VehicleReIDDatasetBuilder:
-    """FIXED: Build ReID dataset with proper splits and consistent labels"""
+    """Build ReID dataset with proper splits and consistent labels"""
     
     def __init__(self, output_dir: str):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        self.feature_extractor = RCNNFeatureExtractor()
+        self.feature_extractor = ResNet50FeatureExtractor()
         self.video_processors = {}
         
-        # FIXED: Global vehicle ID mapping for consistency
+        # Global vehicle ID mapping for consistency across splits
         self.global_vehicle_mapping = {}
         self.next_pid = 0
         
@@ -225,7 +210,7 @@ class VehicleReIDDatasetBuilder:
         # Extract features for each detection
         features_data = []
         
-        for detection in tqdm(all_detections, desc="Extracting R-CNN features"):
+        for detection in tqdm(all_detections, desc="Extracting ResNet50 features"):
             feature_data = self.extract_single_feature(detection)
             if feature_data is not None:
                 features_data.append(feature_data)
@@ -252,7 +237,7 @@ class VehicleReIDDatasetBuilder:
         return features_data
     
     def extract_single_feature(self, detection):
-        """Extract R-CNN features for single detection"""
+        """Extract ResNet50 features for single detection"""
         
         camera_id = detection['camera_id']
         frame_id = detection['frame_id']
@@ -283,7 +268,7 @@ class VehicleReIDDatasetBuilder:
             logger.warning(f"Empty crop for detection: {detection}")
             return None
         
-        # Extract R-CNN features
+        # Extract ResNet50 features
         features = self.feature_extractor.extract_features(vehicle_crop)
         if features is None:
             return None
@@ -298,7 +283,7 @@ class VehicleReIDDatasetBuilder:
             'bbox': detection['bbox'],
             'features': features,
             'feature_dim': len(features),
-            'pid': self.get_consistent_pid(detection['vehicle_id'])  # FIXED: Add consistent PID
+            'pid': self.get_consistent_pid(detection['vehicle_id'])
         }
         
         return feature_data
@@ -328,7 +313,7 @@ class VehicleReIDDatasetBuilder:
             json.dump(metadata, f, indent=2, default=str)
     
     def create_reid_splits(self, features_data):
-        """FIXED: Create proper ReID splits with cross-camera validation"""
+        """Create proper ReID splits with cross-camera validation"""
         
         # Group by vehicle ID
         by_vehicle = defaultdict(list)
@@ -414,23 +399,25 @@ class VehicleReIDDatasetBuilder:
             print(f"📷 Camera {camera_id}: {len(vehicles)} unique vehicles")
         
         print(f"🔗 Cross-camera vehicles: {len(self.stats['cross_camera_vehicles'])}")
-        print(f"📊 Cross-camera coverage: {len(self.stats['cross_camera_vehicles'])/len(self.global_vehicle_mapping)*100:.1f}%")
+        if len(self.global_vehicle_mapping) > 0:
+            coverage = len(self.stats['cross_camera_vehicles'])/len(self.global_vehicle_mapping)*100
+            print(f"📊 Cross-camera coverage: {coverage:.1f}%")
         print("="*50)
 
 def main():
     """Main extraction pipeline"""
     
-    # Configuration
+    # Configuration - Update paths for your dataset
     config = {
         'xml_files': {
-            'data/raw/CustomVehicleDataset/annotations_11.xml': 1,  # Camera 1
-            'data/raw/CustomVehicleDataset/annotations_21.xml': 2,  # Camera 2
+            './raw/CustomVehicleDataset/annotations_11.xml': 1,  # Camera 1
+            './raw/CustomVehicleDataset/annotations_21.xml': 2,  # Camera 2
         },
         'video_files': {
-            1: 'data/raw/CustomVehicleDataset/video11.MOV',  # Camera 1
-            2: 'data/raw/CustomVehicleDataset/video21.MOV',  # Camera 2
+            1: './raw/CustomVehicleDataset/video11.MOV',  # Camera 1
+            2: './raw/CustomVehicleDataset/video21.MOV',  # Camera 2
         },
-        'output_dir': 'data/processed/CustomVehicleDataset/features'
+        'output_dir': './data/processed/CustomVehicleDataset/features'
     }
     
     # Create dataset builder
@@ -444,13 +431,13 @@ def main():
         builder.add_video(video_path, camera_id)
     
     # Process annotations and extract features
-    logger.info("Starting R-CNN feature extraction...")
+    logger.info("Starting ResNet50 feature extraction...")
     features_data = builder.process_annotations(config['xml_files'])
     
     logger.info("Feature extraction completed!")
     logger.info(f"Output directory: {config['output_dir']}")
     logger.info("Files created:")
-    logger.info("  - vehicle_features.pkl (all features)")
+    logger.info("  - vehicle_features.pkl (all 2048-dim features)")
     logger.info("  - train_features.pkl (training set)")
     logger.info("  - query_features.pkl (query set)")  
     logger.info("  - gallery_features.pkl (gallery set)")
