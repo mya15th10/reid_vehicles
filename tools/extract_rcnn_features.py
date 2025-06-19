@@ -50,7 +50,7 @@ class RCNNFeatureExtractor:
         logger.info("R-CNN feature extractor initialized")
     
     def extract_features(self, image_crop):
-        """Extract 2048-dim features from image crop"""
+        """Extract 256-dim features from image crop"""
         
         # Preprocess image
         if len(image_crop.shape) == 3:

@@ -117,7 +117,7 @@ class build_feature_transformer(nn.Module):
         self.ID_LOSS_TYPE = cfg.MODEL.ID_LOSS_TYPE
         
         # Input feature dimension (R-CNN features)
-        self.in_planes = getattr(cfg.MODEL, 'FEATURE_DIM', 2048)  # Default to 2048 if not specified
+        self.in_planes = getattr(cfg.MODEL, 'FEATURE_DIM', 256)  # Default to 256 if not specified
         self.embedding_dim = self.in_planes  # Keep same dimension for simplicity
         
         print(f"Building feature-based model:")
