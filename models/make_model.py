@@ -85,7 +85,7 @@ class build_feature_transformer(nn.Module):
         
         # FIXED: Use correct R-CNN feature dimension
         self.in_planes = 256  # R-CNN feature dimension
-        self.embedding_dim = 512  # Reduced embedding dimension for efficiency
+        self.embedding_dim = self.in_planes  # Reduced embedding dimension for efficiency
         
         print(f"Building feature-based model:")
         print(f"  - Input feature dim: {self.in_planes}")
@@ -107,11 +107,8 @@ class build_feature_transformer(nn.Module):
         # FIXED: Proper feature processing
         self.feature_processor = nn.Sequential(
             nn.BatchNorm1d(self.in_planes),
-            nn.Linear(self.in_planes, self.embedding_dim),
-            nn.BatchNorm1d(self.embedding_dim),
             nn.ReLU(inplace=True)
-        )
-                
+        )  
         # Initialize feature processor
         for m in self.feature_processor:
             if isinstance(m, nn.Linear):
