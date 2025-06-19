@@ -1,10 +1,10 @@
 MODEL:
   DEVICE: "cuda"
-  NAME: 'feature_transformer'  # CHANGED: More descriptive name
-  FEATURE_DIM: 256
-  LAST_STRIDE: 1  # Not used for feature input, but keep for compatibility
+  NAME: 'feature_transformer'
+  FEATURE_DIM: 2048  # FIXED: Match R-CNN feature dimension
+  LAST_STRIDE: 1
   PRETRAIN_PATH: ''
-  PRETRAIN_CHOICE: 'imagenet'  # Not used for feature input
+  PRETRAIN_CHOICE: 'imagenet'
   NECK: 'bnneck'
   IF_WITH_CENTER: 'no'
   ID_LOSS_TYPE: 'softmax'
@@ -16,39 +16,34 @@ MODEL:
   IF_LABELSMOOTH: 'on'
   COS_LAYER: False
   
-  # Transformer settings (simplified for feature input)
+  # Transformer settings
   DROP_PATH: 0.1
-  DROP_OUT: 0.1  # INCREASED: More dropout for feature input
+  DROP_OUT: 0.0  # FIXED: Reduce dropout for feature input
   ATT_DROP_RATE: 0.0
   TRANSFORMER_TYPE: 'None'
-  STRIDE_SIZE: [16, 16]  # Not used for feature input
+  STRIDE_SIZE: [16, 16]
   
-  # SIE settings (KEEP THESE!)
+  # SIE settings - KEEP THESE!
   SIE_COE: 3.0
   SIE_CAMERA: True   # Important for cross-camera ReID
   SIE_VIEW: False    # Disable view-aware features
-  
-  # FIXED: Feature-specific settings
-  FEATURE_DIM: 256  # R-CNN feature dimension
 
-# FIXED: Remove image-specific parameters completely
 INPUT:
   FEATURE_NORM: True  # Normalize input features
 
-# FIXED: Point to correct directory structure
 DATASETS:
   NAMES: 'CustomVehicleDataset'
-  ROOT_DIR: './data/processed'  # Point to processed features
+  ROOT_DIR: './data/processed'
 
 DATALOADER:
   NUM_WORKERS: 4
-  SAMPLER: 'softmax_triplet'  # Keep triplet sampling
+  SAMPLER: 'softmax_triplet'  # CRITICAL: Use triplet sampling
   NUM_INSTANCE: 4
 
 SOLVER:
   OPTIMIZER_NAME: "Adam"
-  MAX_EPOCHS: 200     # INCREASED: May need more epochs with features
-  BASE_LR: 1e-4       # REDUCED: Lower LR for feature input
+  MAX_EPOCHS: 120     # REDUCED: Start with fewer epochs
+  BASE_LR: 3e-4       # INCREASED: Higher LR for proper convergence
   LARGE_FC_LR: False
   BIAS_LR_FACTOR: 1
   SEED: 1234
@@ -59,19 +54,19 @@ SOLVER:
   WEIGHT_DECAY: 0.0005
   WEIGHT_DECAY_BIAS: 0.0005
   GAMMA: 0.1
-  STEPS: [40, 80]     # Adjusted for longer training
+  STEPS: [40, 80]
   WARMUP_FACTOR: 0.01
-  WARMUP_EPOCHS: 10   # INCREASED: Longer warmup
+  WARMUP_EPOCHS: 10
   WARMUP_METHOD: "linear"
   COSINE_MARGIN: 0.5
   COSINE_SCALE: 30
-  CHECKPOINT_PERIOD: 20  # INCREASED: Less frequent checkpoints
+  CHECKPOINT_PERIOD: 20
   LOG_PERIOD: 50
-  EVAL_PERIOD: 20     # INCREASED: Less frequent evaluation
-  IMS_PER_BATCH: 128  # INCREASED: Larger batches with features
+  EVAL_PERIOD: 20
+  IMS_PER_BATCH: 64   # REDUCED: Smaller batches
 
 TEST:
-  IMS_PER_BATCH: 256  # INCREASED: Much faster inference
+  IMS_PER_BATCH: 128
   RE_RANKING: False
   WEIGHT: ""
   NECK_FEAT: 'after'

@@ -26,7 +26,6 @@ def weights_init_classifier(m):
         if m.bias:
             nn.init.constant_(m.bias, 0.0)
 
-
 class SIELayer(nn.Module):
     """Spatial-Instance Embedding Layer for camera-aware features"""
     
@@ -68,40 +67,8 @@ class SIELayer(nn.Module):
             
         return x
 
-
-class FeatureProcessor(nn.Module):
-    """Process R-CNN features before classification"""
-    
-    def __init__(self, input_dim, output_dim, dropout=0.1):
-        super().__init__()
-        self.processor = nn.Sequential(
-            nn.Linear(input_dim, output_dim),
-            nn.BatchNorm1d(output_dim),
-            nn.ReLU(inplace=True),
-            nn.Dropout(dropout),
-            nn.Linear(output_dim, output_dim),
-            nn.BatchNorm1d(output_dim),
-            nn.ReLU(inplace=True),
-            nn.Dropout(dropout)
-        )
-        
-        # Initialize weights
-        for m in self.processor:
-            if isinstance(m, nn.Linear):
-                weights_init_kaiming(m)
-            elif isinstance(m, nn.BatchNorm1d):
-                weights_init_kaiming(m)
-    
-    def forward(self, x):
-        return self.processor(x)
-
-
 class build_feature_transformer(nn.Module):
-    """Feature-based Transformer model for Vehicle Re-identification
-    
-    This model processes R-CNN extracted features instead of raw images.
-    Architecture: R-CNN Features -> Feature Processing -> SIE -> Bottleneck -> Classifier
-    """
+    """FIXED: Feature-based model for Vehicle Re-identification"""
     
     def __init__(self, num_classes, camera_num, view_num, cfg):
         super(build_feature_transformer, self).__init__()
@@ -116,15 +83,15 @@ class build_feature_transformer(nn.Module):
         self.neck_feat = cfg.TEST.NECK_FEAT
         self.ID_LOSS_TYPE = cfg.MODEL.ID_LOSS_TYPE
         
-        # Input feature dimension (R-CNN features)
-        self.in_planes = getattr(cfg.MODEL, 'FEATURE_DIM', 256)  # Default to 256 if not specified
-        self.embedding_dim = self.in_planes  # Keep same dimension for simplicity
+        # FIXED: Use correct R-CNN feature dimension
+        self.in_planes = 2048  # R-CNN feature dimension
+        self.embedding_dim = 512  # Reduced embedding dimension for efficiency
         
         print(f"Building feature-based model:")
         print(f"  - Input feature dim: {self.in_planes}")
+        print(f"  - Embedding dim: {self.embedding_dim}")
         print(f"  - Number of classes: {num_classes}")
         print(f"  - Camera num: {camera_num}")
-        print(f"  - View num: {view_num}")
         
         # Camera and view configuration for SIE
         if cfg.MODEL.SIE_CAMERA:
@@ -136,19 +103,24 @@ class build_feature_transformer(nn.Module):
             self.view_num = view_num
         else:
             self.view_num = 0
-            
-        # Feature input normalization
-        self.feature_bn = nn.BatchNorm1d(self.in_planes)
-        self.feature_bn.bias.requires_grad_(False)
-        self.feature_bn.apply(weights_init_kaiming)
         
-        # Feature processing layers
-        dropout_rate = getattr(cfg.MODEL, 'DROP_OUT', 0.1)
-        self.feature_processor = FeatureProcessor(
-            input_dim=self.in_planes,
-            output_dim=self.embedding_dim,
-            dropout=dropout_rate
+        # FIXED: Proper feature processing
+        self.feature_processor = nn.Sequential(
+            nn.Linear(self.in_planes, 1024),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.1),
+            nn.Linear(1024, self.embedding_dim),
+            nn.BatchNorm1d(self.embedding_dim),
+            nn.ReLU(inplace=True)
         )
+        
+        # Initialize feature processor
+        for m in self.feature_processor:
+            if isinstance(m, nn.Linear):
+                weights_init_kaiming(m)
+            elif isinstance(m, nn.BatchNorm1d):
+                weights_init_kaiming(m)
         
         # SIE Layer for camera-aware features
         sie_coefficient = getattr(cfg.MODEL, 'SIE_COE', 3.0)
@@ -164,61 +136,20 @@ class build_feature_transformer(nn.Module):
         self.bottleneck.bias.requires_grad_(False)
         self.bottleneck.apply(weights_init_kaiming)
         
-        # Classifier based on loss type
-        if self.ID_LOSS_TYPE == 'arcface':
-            print('Using ArcFace loss with s:{}, m:{}'.format(
-                cfg.SOLVER.COSINE_SCALE, cfg.SOLVER.COSINE_MARGIN))
-            self.classifier = Arcface(
-                self.embedding_dim, 
-                self.num_classes,
-                s=cfg.SOLVER.COSINE_SCALE, 
-                m=cfg.SOLVER.COSINE_MARGIN
-            )
-        elif self.ID_LOSS_TYPE == 'cosface':
-            print('Using CosFace loss with s:{}, m:{}'.format(
-                cfg.SOLVER.COSINE_SCALE, cfg.SOLVER.COSINE_MARGIN))
-            self.classifier = Cosface(
-                self.embedding_dim, 
-                self.num_classes,
-                s=cfg.SOLVER.COSINE_SCALE, 
-                m=cfg.SOLVER.COSINE_MARGIN
-            )
-        elif self.ID_LOSS_TYPE == 'amsoftmax':
-            print('Using AMSoftmax loss with s:{}, m:{}'.format(
-                cfg.SOLVER.COSINE_SCALE, cfg.SOLVER.COSINE_MARGIN))
-            self.classifier = AMSoftmax(
-                self.embedding_dim, 
-                self.num_classes,
-                s=cfg.SOLVER.COSINE_SCALE, 
-                m=cfg.SOLVER.COSINE_MARGIN
-            )
-        elif self.ID_LOSS_TYPE == 'circle':
-            print('Using Circle loss with s:{}, m:{}'.format(
-                cfg.SOLVER.COSINE_SCALE, cfg.SOLVER.COSINE_MARGIN))
-            self.classifier = CircleLoss(
-                self.embedding_dim, 
-                self.num_classes,
-                s=cfg.SOLVER.COSINE_SCALE, 
-                m=cfg.SOLVER.COSINE_MARGIN
-            )
-        else:
-            print('Using Softmax loss')
-            self.classifier = nn.Linear(self.embedding_dim, self.num_classes, bias=False)
-            self.classifier.apply(weights_init_classifier)
+        # Classifier
+        print('Using Softmax loss')
+        self.classifier = nn.Linear(self.embedding_dim, self.num_classes, bias=False)
+        self.classifier.apply(weights_init_classifier)
 
     def forward(self, x, label=None, cam_label=None, view_label=None):
         """
         Forward pass
         
         Args:
-            x: R-CNN features [batch_size, feature_dim]
+            x: R-CNN features [batch_size, 2048]
             label: ground truth labels for training [batch_size]
             cam_label: camera labels [batch_size] 
             view_label: view labels [batch_size]
-            
-        Returns:
-            Training: (cls_score, global_feat)
-            Testing: feat (after bottleneck) or global_feat (before bottleneck)
         """
         # Input validation
         if len(x.shape) != 2:
@@ -227,11 +158,8 @@ class build_feature_transformer(nn.Module):
         if x.shape[1] != self.in_planes:
             raise ValueError(f"Expected feature dim {self.in_planes}, got {x.shape[1]}")
         
-        # Feature normalization
-        global_feat = self.feature_bn(x)
-        
-        # Feature processing
-        global_feat = self.feature_processor(global_feat)
+        # Process R-CNN features
+        global_feat = self.feature_processor(x)
         
         # Apply SIE (camera-aware features)
         if cam_label is not None or view_label is not None:
@@ -243,21 +171,13 @@ class build_feature_transformer(nn.Module):
         # Training vs inference
         if self.training:
             # Classification score
-            if self.ID_LOSS_TYPE in ('arcface', 'cosface', 'amsoftmax', 'circle'):
-                if label is None:
-                    raise ValueError("Label is required for metric learning losses during training")
-                cls_score = self.classifier(feat, label)
-            else:
-                cls_score = self.classifier(feat)
-            
+            cls_score = self.classifier(feat)
             return cls_score, global_feat  # Return both for combined losses
         else:
-            # Inference mode
+            # Inference mode - return normalized features
             if self.neck_feat == 'after':
-                # Return features after bottleneck (normalized)
                 return F.normalize(feat, p=2, dim=1)
             else:
-                # Return features before bottleneck
                 return F.normalize(global_feat, p=2, dim=1)
     
     def load_param(self, trained_path):
@@ -271,57 +191,32 @@ class build_feature_transformer(nn.Module):
             elif 'state_dict' in param_dict:
                 param_dict = param_dict['state_dict']
             
-            # Remove 'module.' prefix if present (from DataParallel)
+            # Remove 'module.' prefix if present
             new_param_dict = {}
             for key, value in param_dict.items():
                 new_key = key.replace('module.', '')
                 new_param_dict[new_key] = value
             
-            # Load parameters (strict=False to allow partial loading)
+            # Load parameters
             missing_keys, unexpected_keys = self.load_state_dict(new_param_dict, strict=False)
             
             if missing_keys:
-                print(f"Missing keys when loading pretrained model: {missing_keys}")
+                print(f"Missing keys: {missing_keys}")
             if unexpected_keys:
-                print(f"Unexpected keys when loading pretrained model: {unexpected_keys}")
+                print(f"Unexpected keys: {unexpected_keys}")
                 
             print(f'Successfully loaded pretrained model from {trained_path}')
             
         except Exception as e:
-            print(f'Error loading pretrained model from {trained_path}: {e}')
+            print(f'Error loading pretrained model: {e}')
             raise e
-    
-    def get_feature_dim(self):
-        """Get output feature dimension"""
-        return self.embedding_dim
-    
-    def get_classifier_weight(self):
-        """Get classifier weights for analysis"""
-        if hasattr(self.classifier, 'weight'):
-            return self.classifier.weight
-        else:
-            return None
 
 def make_model(cfg, num_class, camera_num, view_num):
-    """Create model based on configuration
-    
-    Args:
-        cfg: Configuration object
-        num_class: Number of classes for classification
-        camera_num: Number of cameras for SIE
-        view_num: Number of views for SIE
-        
-    Returns:
-        model: Built model ready for training/inference
-    """
+    """Create model based on configuration"""
     if cfg.MODEL.NAME == 'feature_transformer':  
         model = build_feature_transformer(num_class, camera_num, view_num, cfg)
         print('===========Building Feature-based Transformer===========')
-    elif cfg.MODEL.NAME == 'cnn_transformer':  # Your old config might use this
-        model = build_feature_transformer(num_class, camera_num, view_num, cfg)
-        print('===========Building Feature-based Transformer (CNN name)============')
     else:
-        # Fallback for other model types
-        raise NotImplementedError(f"Model '{cfg.MODEL.NAME}' not implemented. Available: 'feature_transformer'")
+        raise NotImplementedError(f"Model '{cfg.MODEL.NAME}' not implemented")
     
     return model
