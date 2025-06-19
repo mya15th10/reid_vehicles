@@ -1,7 +1,7 @@
 MODEL:
   DEVICE: "cuda"
   NAME: 'feature_transformer'
-  FEATURE_DIM: 2048  # FIXED: Match R-CNN feature dimension
+  FEATURE_DIM: 256  # Match your FPN feature dimension
   LAST_STRIDE: 1
   PRETRAIN_PATH: ''
   PRETRAIN_CHOICE: 'imagenet'
@@ -16,9 +16,9 @@ MODEL:
   IF_LABELSMOOTH: 'on'
   COS_LAYER: False
   
-  # Transformer settings
+  # Optimized for 256-dim features
   DROP_PATH: 0.1
-  DROP_OUT: 0.0  # FIXED: Reduce dropout for feature input
+  DROP_OUT: 0.0
   ATT_DROP_RATE: 0.0
   TRANSFORMER_TYPE: 'None'
   STRIDE_SIZE: [16, 16]
@@ -26,10 +26,10 @@ MODEL:
   # SIE settings - KEEP THESE!
   SIE_COE: 3.0
   SIE_CAMERA: True   # Important for cross-camera ReID
-  SIE_VIEW: False    # Disable view-aware features
+  SIE_VIEW: False
 
 INPUT:
-  FEATURE_NORM: True  # Normalize input features
+  FEATURE_NORM: True
 
 DATASETS:
   NAMES: 'CustomVehicleDataset'
@@ -37,13 +37,13 @@ DATASETS:
 
 DATALOADER:
   NUM_WORKERS: 4
-  SAMPLER: 'softmax_triplet'  # CRITICAL: Use triplet sampling
+  SAMPLER: 'softmax_triplet'
   NUM_INSTANCE: 4
 
 SOLVER:
   OPTIMIZER_NAME: "Adam"
-  MAX_EPOCHS: 120     # REDUCED: Start with fewer epochs
-  BASE_LR: 3e-4       # INCREASED: Higher LR for proper convergence
+  MAX_EPOCHS: 100
+  BASE_LR: 3e-4       # Good starting point for 256-dim features
   LARGE_FC_LR: False
   BIAS_LR_FACTOR: 1
   SEED: 1234
@@ -54,7 +54,7 @@ SOLVER:
   WEIGHT_DECAY: 0.0005
   WEIGHT_DECAY_BIAS: 0.0005
   GAMMA: 0.1
-  STEPS: [40, 80]
+  STEPS: [40, 70]
   WARMUP_FACTOR: 0.01
   WARMUP_EPOCHS: 10
   WARMUP_METHOD: "linear"
@@ -63,7 +63,7 @@ SOLVER:
   CHECKPOINT_PERIOD: 20
   LOG_PERIOD: 50
   EVAL_PERIOD: 20
-  IMS_PER_BATCH: 64   # REDUCED: Smaller batches
+  IMS_PER_BATCH: 64
 
 TEST:
   IMS_PER_BATCH: 128
