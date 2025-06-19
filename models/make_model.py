@@ -68,55 +68,37 @@ class SIELayer(nn.Module):
         return x
 
 class build_feature_transformer(nn.Module):
-    """FIXED: Feature-based model for Vehicle Re-identification"""
+    """Fixed: Feature-based model for Vehicle Re-identification"""
     
     def __init__(self, num_classes, camera_num, view_num, cfg):
         super(build_feature_transformer, self).__init__()
         
-        # Configuration
         self.num_classes = num_classes
         self.cfg = cfg
-        
-        # Model settings
         self.cos_layer = cfg.MODEL.COS_LAYER
         self.neck = cfg.MODEL.NECK
         self.neck_feat = cfg.TEST.NECK_FEAT
         self.ID_LOSS_TYPE = cfg.MODEL.ID_LOSS_TYPE
         
-        # FIXED: Use correct R-CNN feature dimension
-        self.in_planes = 256  # R-CNN feature dimension
-        self.embedding_dim = self.in_planes  # Reduced embedding dimension for efficiency
+        # FIXED: Simple architecture for 256-dim features
+        self.in_planes = 256
+        self.embedding_dim = 256  # Keep same dimension
         
         print(f"Building feature-based model:")
         print(f"  - Input feature dim: {self.in_planes}")
         print(f"  - Embedding dim: {self.embedding_dim}")
         print(f"  - Number of classes: {num_classes}")
-        print(f"  - Camera num: {camera_num}")
         
-        # Camera and view configuration for SIE
-        if cfg.MODEL.SIE_CAMERA:
-            self.camera_num = camera_num
-        else:
-            self.camera_num = 0
-            
-        if cfg.MODEL.SIE_VIEW:
-            self.view_num = view_num
-        else:
-            self.view_num = 0
+        # Camera configuration
+        self.camera_num = camera_num if cfg.MODEL.SIE_CAMERA else 0
+        self.view_num = view_num if cfg.MODEL.SIE_VIEW else 0
         
-        # FIXED: Proper feature processing
-        self.feature_processor = nn.Sequential(
-            nn.BatchNorm1d(self.in_planes),
-            nn.ReLU(inplace=True)
-        )  
-        # Initialize feature processor
-        for m in self.feature_processor:
-            if isinstance(m, nn.Linear):
-                weights_init_kaiming(m)
-            elif isinstance(m, nn.BatchNorm1d):
-                weights_init_kaiming(m)
+        # FIXED: Simple processing - no complex layers
+        self.feature_bn = nn.BatchNorm1d(self.in_planes)
+        self.feature_bn.bias.requires_grad_(False)
+        self.feature_bn.apply(weights_init_kaiming)
         
-        # SIE Layer for camera-aware features
+        # SIE Layer
         sie_coefficient = getattr(cfg.MODEL, 'SIE_COE', 3.0)
         self.sie_layer = SIELayer(
             channels=self.embedding_dim,
@@ -125,55 +107,35 @@ class build_feature_transformer(nn.Module):
             sie_xishu=sie_coefficient
         )
         
-        # Bottleneck layer
+        # Bottleneck
         self.bottleneck = nn.BatchNorm1d(self.embedding_dim)
         self.bottleneck.bias.requires_grad_(False)
         self.bottleneck.apply(weights_init_kaiming)
         
         # Classifier
-        print('Using Softmax loss')
         self.classifier = nn.Linear(self.embedding_dim, self.num_classes, bias=False)
         self.classifier.apply(weights_init_classifier)
 
     def forward(self, x, label=None, cam_label=None, view_label=None):
-        """
-        Forward pass
-        
-        Args:
-            x: R-CNN features [batch_size, 2048]
-            label: ground truth labels for training [batch_size]
-            cam_label: camera labels [batch_size] 
-            view_label: view labels [batch_size]
-        """
         # Input validation
-        if len(x.shape) != 2:
-            raise ValueError(f"Expected 2D input [batch_size, feature_dim], got {x.shape}")
+        if len(x.shape) != 2 or x.shape[1] != self.in_planes:
+            raise ValueError(f"Expected [batch_size, 256], got {x.shape}")
         
-        if x.shape[1] != self.in_planes:
-            raise ValueError(f"Expected feature dim {self.in_planes}, got {x.shape[1]}")
+        # Simple processing
+        global_feat = self.feature_bn(x)
         
-        # Process R-CNN features
-        global_feat = self.feature_processor(x)
-        
-        # Apply SIE (camera-aware features)
-        if cam_label is not None or view_label is not None:
+        # Apply SIE
+        if cam_label is not None:
             global_feat = self.sie_layer(global_feat, cam_label=cam_label, view_label=view_label)
         
         # Bottleneck
         feat = self.bottleneck(global_feat)
         
-        # Training vs inference
         if self.training:
-            # Classification score
             cls_score = self.classifier(feat)
-            return cls_score, global_feat  # Return both for combined losses
+            return cls_score, global_feat
         else:
-            # Inference mode - return normalized features
-            if self.neck_feat == 'after':
-                return F.normalize(feat, p=2, dim=1)
-            else:
-                return F.normalize(global_feat, p=2, dim=1)
-    
+            return F.normalize(feat, p=2, dim=1)
     def load_param(self, trained_path):
         """Load pretrained parameters"""
         try:
