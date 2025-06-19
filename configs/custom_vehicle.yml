@@ -8,7 +8,7 @@ MODEL:
   NECK: 'bnneck'
   IF_WITH_CENTER: 'no'
   ID_LOSS_TYPE: 'softmax'
-  ID_LOSS_WEIGHT: 1.0
+  ID_LOSS_WEIGHT: 1.0                                                     
   TRIPLET_LOSS_WEIGHT: 1.0
   METRIC_LOSS_TYPE: 'triplet'
   DIST_TRAIN: False
