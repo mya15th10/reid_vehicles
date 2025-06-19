@@ -345,6 +345,20 @@ class VehicleReIDDatasetBuilder:
                 if remaining_cam1 and remaining_cam2:
                     query_data.extend(remaining_cam1)    # Cam1 as queries
                     gallery_data.extend(remaining_cam2)  # Cam2 as gallery
+        
+        # ADD THIS MISSING PART:
+        # Save splits
+        splits = {
+            'train': train_data,
+            'query': query_data,
+            'gallery': gallery_data
+        }
+        
+        for split_name, data in splits.items():
+            split_file = self.output_dir / f'{split_name}_features.pkl'
+            with open(split_file, 'wb') as f:
+                pickle.dump(data, f)
+            logger.info(f"Saved {len(data)} {split_name} features to {split_file}")
 
 def main():
     """Main extraction pipeline"""
