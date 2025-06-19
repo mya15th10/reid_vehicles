@@ -1,14 +1,10 @@
-#!/usr/bin/env python3
-"""
-R-CNN Feature Extraction Pipeline
-Extract features from video frames using CVAT annotations
-"""
 
 import xml.etree.ElementTree as ET
 import cv2
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torchvision.transforms as T
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
 import pickle
@@ -84,6 +80,7 @@ class RCNNFeatureExtractor:
             feature_vector_256 = self.feature_projector(feature_vector_2048)  # [1, 256]
             
             return feature_vector_256.cpu().numpy()[0]  # Return as numpy array
+
 class VideoProcessor:
     """Process videos and extract frames"""
     
@@ -185,12 +182,149 @@ class VehicleReIDDatasetBuilder:
         self.global_vehicle_mapping = {}
         self.next_pid = 0
         
+        # Statistics
+        self.stats = {
+            'total_detections': 0,
+            'successful_extractions': 0,
+            'failed_extractions': 0,
+            'vehicles_by_camera': defaultdict(set),
+            'cross_camera_vehicles': set()
+        }
+    
+    def add_video(self, video_path: str, camera_id: int):
+        """Add video processor for camera"""
+        self.video_processors[camera_id] = VideoProcessor(video_path)
+        logger.info(f"Added video processor for camera {camera_id}: {video_path}")
+    
     def get_consistent_pid(self, vehicle_id: str) -> int:
         """Get consistent PID for vehicle across all splits"""
         if vehicle_id not in self.global_vehicle_mapping:
             self.global_vehicle_mapping[vehicle_id] = self.next_pid
             self.next_pid += 1
         return self.global_vehicle_mapping[vehicle_id]
+    
+    def process_annotations(self, xml_files: Dict[str, int]):
+        """Process all XML annotations and extract features"""
+        
+        all_detections = []
+        parser = CVATAnnotationParser()
+        
+        # Parse all XML files
+        for xml_path, camera_id in xml_files.items():
+            if camera_id not in self.video_processors:
+                logger.error(f"No video processor for camera {camera_id}")
+                continue
+            
+            detections = parser.parse_xml(xml_path, camera_id, self.video_processors[camera_id])
+            all_detections.extend(detections)
+        
+        logger.info(f"Total detections to process: {len(all_detections)}")
+        self.stats['total_detections'] = len(all_detections)
+        
+        # Extract features for each detection
+        features_data = []
+        
+        for detection in tqdm(all_detections, desc="Extracting R-CNN features"):
+            feature_data = self.extract_single_feature(detection)
+            if feature_data is not None:
+                features_data.append(feature_data)
+                self.stats['successful_extractions'] += 1
+                
+                # Update statistics
+                vehicle_id = detection['vehicle_id']
+                camera_id = detection['camera_id']
+                self.stats['vehicles_by_camera'][camera_id].add(vehicle_id)
+            else:
+                self.stats['failed_extractions'] += 1
+        
+        # Find cross-camera vehicles
+        camera_1_vehicles = self.stats['vehicles_by_camera'][1]
+        camera_2_vehicles = self.stats['vehicles_by_camera'][2]
+        self.stats['cross_camera_vehicles'] = camera_1_vehicles.intersection(camera_2_vehicles)
+        
+        logger.info(f"Successfully extracted {len(features_data)} feature vectors")
+        
+        # Save features
+        self.save_features(features_data)
+        self.print_statistics()
+        
+        return features_data
+    
+    def extract_single_feature(self, detection):
+        """Extract R-CNN features for single detection"""
+        
+        camera_id = detection['camera_id']
+        frame_id = detection['frame_id']
+        bbox = detection['bbox']
+        
+        # Get video processor
+        video_processor = self.video_processors[camera_id]
+        
+        # Get frame
+        frame = video_processor.get_frame(frame_id)
+        if frame is None:
+            return None
+        
+        # Crop vehicle region
+        xtl, ytl, xbr, ybr = bbox
+        xtl, ytl, xbr, ybr = int(xtl), int(ytl), int(xbr), int(ybr)
+        
+        # Ensure coordinates are within frame bounds
+        h, w = frame.shape[:2]
+        xtl = max(0, min(xtl, w-1))
+        ytl = max(0, min(ytl, h-1))
+        xbr = max(xtl+1, min(xbr, w))
+        ybr = max(ytl+1, min(ybr, h))
+        
+        vehicle_crop = frame[ytl:ybr, xtl:xbr]
+        
+        if vehicle_crop.size == 0:
+            logger.warning(f"Empty crop for detection: {detection}")
+            return None
+        
+        # Extract R-CNN features
+        features = self.feature_extractor.extract_features(vehicle_crop)
+        if features is None:
+            return None
+        
+        # Create feature data entry with consistent PID
+        feature_data = {
+            'vehicle_id': detection['vehicle_id'],
+            'camera_id': detection['camera_id'],
+            'frame_id': detection['frame_id'],
+            'frame_name': detection['frame_name'],
+            'label': detection['label'],
+            'bbox': detection['bbox'],
+            'features': features,
+            'feature_dim': len(features),
+            'pid': self.get_consistent_pid(detection['vehicle_id'])  # FIXED: Add consistent PID
+        }
+        
+        return feature_data
+    
+    def save_features(self, features_data):
+        """Save extracted features to files"""
+        
+        # Save complete dataset
+        features_file = self.output_dir / 'vehicle_features.pkl'
+        with open(features_file, 'wb') as f:
+            pickle.dump(features_data, f)
+        logger.info(f"Saved {len(features_data)} features to {features_file}")
+        
+        # Create train/query/gallery splits
+        self.create_reid_splits(features_data)
+        
+        # Save metadata
+        metadata = {
+            'total_features': len(features_data),
+            'feature_dimension': features_data[0]['feature_dim'] if features_data else 0,
+            'statistics': dict(self.stats),
+            'cameras': list(self.video_processors.keys()),
+            'vehicle_types': list(set(item['label'] for item in features_data))
+        }
+        
+        with open(self.output_dir / 'dataset_metadata.json', 'w') as f:
+            json.dump(metadata, f, indent=2, default=str)
     
     def create_reid_splits(self, features_data):
         """FIXED: Create proper ReID splits with cross-camera validation"""
@@ -236,11 +370,6 @@ class VehicleReIDDatasetBuilder:
                 else:
                     gallery_data.extend(test_detections)
         
-        # FIXED: Apply consistent PID mapping
-        for split_data in [train_data, query_data, gallery_data]:
-            for item in split_data:
-                item['pid'] = self.get_consistent_pid(item['vehicle_id'])
-        
         # Validate splits
         train_pids = set(item['pid'] for item in train_data)
         query_pids = set(item['pid'] for item in query_data)
@@ -269,94 +398,38 @@ class VehicleReIDDatasetBuilder:
         
         return splits
     
-    def save_features(self, features_data):
-        """Save extracted features to files"""
+    def print_statistics(self):
+        """Print dataset statistics"""
+        print("\n" + "="*50)
+        print(" FEATURE EXTRACTION STATISTICS")
+        print("="*50)
         
-        # Save complete dataset
-        features_file = self.output_dir / 'vehicle_features.pkl'
-        with open(features_file, 'wb') as f:
-            pickle.dump(features_data, f)
-        logger.info(f"Saved {len(features_data)} features to {features_file}")
+        print(f" Total detections processed: {self.stats['total_detections']}")
+        print(f" Successful extractions: {self.stats['successful_extractions']}")
+        print(f" Failed extractions: {self.stats['failed_extractions']}")
         
-        # Create train/query/gallery splits
-        self.create_reid_splits(features_data)
+        # Per camera stats
+        for camera_id, vehicles in self.stats['vehicles_by_camera'].items():
+            print(f"Camera {camera_id}: {len(vehicles)} unique vehicles")
         
-        # Save metadata
-        metadata = {
-            'total_features': len(features_data),
-            'feature_dimension': features_data[0]['feature_dim'] if features_data else 0,
-            'statistics': dict(self.stats),
-            'cameras': list(self.video_processors.keys()),
-            'vehicle_types': list(set(item['label'] for item in features_data))
-        }
-        
-        with open(self.output_dir / 'dataset_metadata.json', 'w') as f:
-            json.dump(metadata, f, indent=2, default=str)
-    
-    def create_reid_splits(self, features_data):
-        """Create train/query/gallery splits for ReID"""
-        
-        # Group by vehicle ID (not camera!)
-        by_vehicle = defaultdict(list)
-        for item in features_data:
-            by_vehicle[item['vehicle_id']].append(item)
-        
-        train_data = []
-        query_data = []
-        gallery_data = []
-        
-        # For each vehicle, split its detections across train/query/gallery
-        for vehicle_id, detections in by_vehicle.items():
-            # Group by camera
-            cam1_detections = [d for d in detections if d['camera_id'] == 1]
-            cam2_detections = [d for d in detections if d['camera_id'] == 2]
-            
-            # Only use vehicles that appear in BOTH cameras
-            if len(cam1_detections) > 0 and len(cam2_detections) > 0:
-                # 80% of detections for training
-                train_count_cam1 = max(1, int(0.8 * len(cam1_detections)))
-                train_count_cam2 = max(1, int(0.8 * len(cam2_detections)))
-                
-                # Add to train set
-                train_data.extend(cam1_detections[:train_count_cam1])
-                train_data.extend(cam2_detections[:train_count_cam2])
-                
-                # Remaining for query/gallery (ensure cross-camera testing)
-                remaining_cam1 = cam1_detections[train_count_cam1:]
-                remaining_cam2 = cam2_detections[train_count_cam2:]
-                
-                if remaining_cam1 and remaining_cam2:
-                    query_data.extend(remaining_cam1)    # Cam1 as queries
-                    gallery_data.extend(remaining_cam2)  # Cam2 as gallery
-        
-        # ADD THIS MISSING PART:
-        # Save splits
-        splits = {
-            'train': train_data,
-            'query': query_data,
-            'gallery': gallery_data
-        }
-        
-        for split_name, data in splits.items():
-            split_file = self.output_dir / f'{split_name}_features.pkl'
-            with open(split_file, 'wb') as f:
-                pickle.dump(data, f)
-            logger.info(f"Saved {len(data)} {split_name} features to {split_file}")
+        print(f"Cross-camera vehicles: {len(self.stats['cross_camera_vehicles'])}")
+        print(f"Cross-camera coverage: {len(self.stats['cross_camera_vehicles'])/len(self.global_vehicle_mapping)*100:.1f}%")
+        print("="*50)
 
 def main():
     """Main extraction pipeline"""
     
-    # Configuration
+    # Configuration - Updated for your exact file paths
     config = {
         'xml_files': {
-            'data/raw/CustomVehicleDataset/annotations_11.xml': 1,  # Camera 1
-            'data/raw/CustomVehicleDataset/annotations_21.xml': 2,  # Camera 2
+            './raw/CustomVehicleDataset/annotations_11.xml': 1,  # Camera 1
+            './raw/CustomVehicleDataset/annotations_21.xml': 2,  # Camera 2
         },
         'video_files': {
-            1: 'data/raw/CustomVehicleDataset/video11.MOV',  # Camera 1
-            2: 'data/raw/CustomVehicleDataset/video21.MOV',  # Camera 2
+            1: './raw/CustomVehicleDataset/video11.MOV',  # Camera 1
+            2: './raw/CustomVehicleDataset/video21.MOV',  # Camera 2
         },
-        'output_dir': 'data/processed/CustomVehicleDataset/features'
+        'output_dir': './data/processed/CustomVehicleDataset/features'
     }
     
     # Create dataset builder
@@ -381,6 +454,7 @@ def main():
     logger.info("  - query_features.pkl (query set)")  
     logger.info("  - gallery_features.pkl (gallery set)")
     logger.info("  - dataset_metadata.json (statistics)")
+    logger.info("  - pid_mapping.json (PID mapping)")
 
 if __name__ == "__main__":
     main()
