@@ -78,8 +78,8 @@ class CustomVehicleDataset(BaseImageDataset):
             viewid = 0
             
             # FIXED: Validate feature dimensions
-            if len(features) != 256:
-                print(f"Warning: Expected 256-dim features, got {len(features)}")
+            if len(features) != 2048:
+                print(f"Warning: Expected 2048-dim features, got {len(features)}")
                 continue
             
             dataset.append((features, pid, camid, viewid))
