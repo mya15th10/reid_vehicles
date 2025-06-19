@@ -397,8 +397,8 @@ def main():
             'data/raw/CustomVehicleDataset/annotations_21.xml': 2,  # Camera 2
         },
         'video_files': {
-            1: 'data/raw/CustomVehicleDataset/video1(1).MOV',  # Camera 1
-            2: 'data/raw/CustomVehicleDataset/video2(1).MOV',  # Camera 2
+            1: 'data/raw/CustomVehicleDataset/video11.MOV',  # Camera 1
+            2: 'data/raw/CustomVehicleDataset/video21.MOV',  # Camera 2
         },
         'output_dir': 'data/processed/CustomVehicleDataset/features'
     }

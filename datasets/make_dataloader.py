@@ -1,41 +1,23 @@
 import torch
-import torchvision.transforms as T
+import numpy as np
 from torch.utils.data import DataLoader
-
-from .custom_dataset import CustomVehicleDataset  # Import your custom dataset
+from .custom_dataset import CustomVehicleDataset
 from .bases import BaseImageDataset
 from .samplers import RandomIdentitySampler
-from .preprocessing import RandomErasing
-
 
 def make_dataloader(cfg):
-    train_transforms = T.Compose([
-        T.Resize(cfg.INPUT.SIZE_TRAIN),
-        T.RandomHorizontalFlip(p=cfg.INPUT.PROB),
-        T.Pad(cfg.INPUT.PADDING),
-        T.RandomCrop(cfg.INPUT.SIZE_TRAIN),
-        T.ToTensor(),
-        T.Normalize(mean=cfg.INPUT.PIXEL_MEAN, std=cfg.INPUT.PIXEL_STD),
-        RandomErasing(probability=cfg.INPUT.RE_PROB, mean=cfg.INPUT.PIXEL_MEAN)
-    ])
-
-    val_transforms = T.Compose([
-        T.Resize(cfg.INPUT.SIZE_TEST),
-        T.ToTensor(),
-        T.Normalize(mean=cfg.INPUT.PIXEL_MEAN, std=cfg.INPUT.PIXEL_STD)
-    ])
-
+    
     num_workers = cfg.DATALOADER.NUM_WORKERS
 
-    # Use CustomVehicleDataset instead of VeRi
+    # Use CustomVehicleDataset (now feature-based)
     dataset = CustomVehicleDataset(root=cfg.DATASETS.ROOT_DIR)
     num_classes = dataset.num_train_pids
     
     # Camera and view numbers for your dataset
-    camera_num = 2  # 2 cameras (front and back views)
+    camera_num = 2  # 2 cameras
     view_num = 1    # 1 view per camera
     
-    train_set = ImageDataset(dataset.train, train_transforms)
+    train_set = FeatureDataset(dataset.train)
     
     if cfg.DATALOADER.SAMPLER == 'softmax':
         train_loader = DataLoader(
@@ -49,7 +31,7 @@ def make_dataloader(cfg):
             num_workers=num_workers, collate_fn=train_collate_fn
         )
 
-    val_set = ImageDataset(dataset.query + dataset.gallery, val_transforms)
+    val_set = FeatureDataset(dataset.query + dataset.gallery)
     val_loader = DataLoader(
         val_set, batch_size=cfg.TEST.IMS_PER_BATCH, shuffle=False,
         num_workers=num_workers, collate_fn=val_collate_fn
@@ -60,49 +42,46 @@ def make_dataloader(cfg):
     return train_loader, train_loader_normal, val_loader, len(dataset.query), num_classes, camera_num, view_num
 
 
-class ImageDataset(torch.utils.data.Dataset):
-    def __init__(self, dataset, transform=None):
+class FeatureDataset(torch.utils.data.Dataset):
+    """Dataset for feature vectors instead of images"""
+    
+    def __init__(self, dataset):
         self.dataset = dataset
-        self.transform = transform
 
     def __len__(self):
         return len(self.dataset)
 
     def __getitem__(self, index):
-        img_path, pid, camid, viewid = self.dataset[index]
-        img = read_image(img_path)
+        features, pid, camid, viewid = self.dataset[index]
         
-        if self.transform is not None:
-            img = self.transform(img)
+        # Convert features to tensor
+        if isinstance(features, np.ndarray):
+            features = torch.FloatTensor(features)
+        else:
+            features = torch.FloatTensor(np.array(features))
         
-        return img, pid, camid, viewid, img_path
-
-
-def read_image(img_path):
-    """Read image from file path"""
-    from PIL import Image
-    got_img = False
-    try:
-        img = Image.open(img_path).convert('RGB')
-        got_img = True
-    except IOError:
-        print(f"IOError occurred when reading image from {img_path}")
-    
-    if not got_img:
-        raise IOError(f"Failed to read image from {img_path}")
-    
-    return img
+        return features, pid, camid, viewid, f"feature_{index}"  # fake path for compatibility
 
 
 def train_collate_fn(batch):
-    imgs, pids, camids, viewids, _ = zip(*batch)
+    features, pids, camids, viewids, _ = zip(*batch)
+    
+    # Stack feature vectors instead of images
+    features = torch.stack(features, dim=0)  # [batch_size, feature_dim]
+    
     pids = torch.tensor(pids, dtype=torch.int64)
     camids = torch.tensor(camids, dtype=torch.int64)
     viewids = torch.tensor([int(v) if isinstance(v, str) else v for v in viewids], dtype=torch.int64)
-    return torch.stack(imgs, dim=0), pids, camids, viewids
+    
+    return features, pids, camids, viewids
 
 
 def val_collate_fn(batch):
-    imgs, pids, camids, viewids, img_paths = zip(*batch)
+    features, pids, camids, viewids, paths = zip(*batch)
+    
+    # Stack feature vectors
+    features = torch.stack(features, dim=0)
+    
     viewids = torch.tensor([int(v) if isinstance(v, str) else v for v in viewids], dtype=torch.int64)
-    return torch.stack(imgs, dim=0), pids, camids, viewids, img_paths
+    
+    return features, pids, camids, viewids, paths

@@ -1,9 +1,9 @@
 MODEL:
   DEVICE: "cuda"
-  NAME: 'cnn_transformer'  # Use your CNN+Transformer model
-  LAST_STRIDE: 1
+  NAME: 'cnn_transformer'  # Keep same name, but model will be feature-based
+  LAST_STRIDE: 1  # Not used for feature input, but keep for compatibility
   PRETRAIN_PATH: ''
-  PRETRAIN_CHOICE: 'imagenet'
+  PRETRAIN_CHOICE: 'imagenet'  # Not used for feature input
   NECK: 'bnneck'
   IF_WITH_CENTER: 'no'
   ID_LOSS_TYPE: 'softmax'
@@ -20,35 +20,44 @@ MODEL:
   DROP_OUT: 0.0
   ATT_DROP_RATE: 0.0
   TRANSFORMER_TYPE: 'None'
-  STRIDE_SIZE: [16, 16]
+  STRIDE_SIZE: [16, 16]  # Not used for feature input
   
-  # SIE settings (for multi-camera)
+  # SIE settings (for multi-camera) - KEEP THESE!
   SIE_COE: 3.0
-  SIE_CAMERA: True   # Enable camera-aware features
+  SIE_CAMERA: True   # Important for cross-camera ReID
   SIE_VIEW: False    # Disable view-aware features
+  
+  # NEW: Feature-specific settings
+  FEATURE_DIM: 2048  # R-CNN feature dimension
 
+# UPDATED: Remove image-specific parameters
 INPUT:
-  SIZE_TRAIN: [384, 128]
-  SIZE_TEST: [384, 128]
-  PROB: 0.5
-  RE_PROB: 0.5
-  PIXEL_MEAN: [0.485, 0.456, 0.406]
-  PIXEL_STD: [0.229, 0.224, 0.225]
-  PADDING: 10
+  # Remove image size parameters (not needed for features)
+  # SIZE_TRAIN: [384, 128]  # REMOVE
+  # SIZE_TEST: [384, 128]   # REMOVE
+  # PROB: 0.5               # REMOVE
+  # RE_PROB: 0.5            # REMOVE
+  # PIXEL_MEAN: [0.485, 0.456, 0.406]  # REMOVE
+  # PIXEL_STD: [0.229, 0.224, 0.225]   # REMOVE
+  # PADDING: 10             # REMOVE
+  
+  # NEW: Feature normalization (optional)
+  FEATURE_NORM: True  # Normalize input features
 
+# UPDATED: Point to processed features directory
 DATASETS:
   NAMES: 'CustomVehicleDataset'
-  ROOT_DIR: './data/raw'
+  ROOT_DIR: './data/processed'  # CHANGED: Point to features directory
 
 DATALOADER:
-  NUM_WORKERS: 4     # Reduce if you have memory issues
-  SAMPLER: 'softmax_triplet'  # Use triplet sampling for better training
+  NUM_WORKERS: 4     # Can increase since no image processing
+  SAMPLER: 'softmax_triplet'  # Keep triplet sampling
   NUM_INSTANCE: 4    # 4 instances per identity in each batch
 
 SOLVER:
   OPTIMIZER_NAME: "Adam"
-  MAX_EPOCHS: 60     # Reduced epochs for smaller dataset
-  BASE_LR: 3e-4
+  MAX_EPOCHS: 60     # May need fewer epochs with features
+  BASE_LR: 3e-4      # May need to adjust for feature input
   LARGE_FC_LR: False
   BIAS_LR_FACTOR: 1
   SEED: 1234
@@ -68,14 +77,14 @@ SOLVER:
   CHECKPOINT_PERIOD: 10
   LOG_PERIOD: 50     # More frequent logging
   EVAL_PERIOD: 10
-  IMS_PER_BATCH: 32  # Reduced batch size for smaller dataset
+  IMS_PER_BATCH: 64  # INCREASED: Can handle larger batches with features
 
 TEST:
-  IMS_PER_BATCH: 64
+  IMS_PER_BATCH: 128  # INCREASED: Faster inference with features
   RE_RANKING: False
   WEIGHT: ""
   NECK_FEAT: 'after'
   FEAT_NORM: 'yes'
   EVAL: False
 
-OUTPUT_DIR: "./logs/custom_vehicle_reid"
+OUTPUT_DIR: "./logs/custom_vehicle_reid_features"  # CHANGED: Different output dir

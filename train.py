@@ -28,7 +28,7 @@ def set_seed(seed):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="ReID Baseline Training")
     parser.add_argument(
-        "--config_file", default="", help="path to config file", type=str
+        "--config_file", default="configs/custom_vehicle.yml", help="path to config file", type=str
     )
     parser.add_argument("opts", help="Modify config options using the command-line", default=None,
                         nargs=argparse.REMAINDER)
@@ -38,8 +38,10 @@ if __name__ == '__main__':
     if args.config_file != "":
         cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
-    cfg.DATASETS.ROOT_DIR = r'./data/raw'
-    print(f"Dataset path updated to: {cfg.DATASETS.ROOT_DIR}")
+    
+    # FIXED: Correct path for processed features
+    cfg.DATASETS.ROOT_DIR = './data/processed'
+    print(f"Dataset path: {cfg.DATASETS.ROOT_DIR}")
     cfg.freeze()
 
     set_seed(cfg.SOLVER.SEED)
@@ -67,15 +69,27 @@ if __name__ == '__main__':
 
     os.environ['CUDA_VISIBLE_DEVICES'] = cfg.MODEL.DEVICE_ID
 
-    train_loader, train_loader_normal, val_loader, num_query, num_classes, camera_num, view_num = make_dataloader(cfg)
+    # Load data
+    try:
+        train_loader, train_loader_normal, val_loader, num_query, num_classes, camera_num, view_num = make_dataloader(cfg)
+        print(f"Data loaded successfully: {num_classes} classes, {camera_num} cameras")
+    except Exception as e:
+        print(f"Data loading failed: {e}")
+        raise
     
-    model = make_model(cfg, num_class=num_classes, camera_num=camera_num, view_num=view_num)
+    # Create model
+    try:
+        model = make_model(cfg, num_class=num_classes, camera_num=camera_num, view_num=view_num)
+        print(f"Model created successfully")
+    except Exception as e:
+        print(f"Model creation failed: {e}")
+        raise
     
+    # Loss and optimizer
     loss_func, center_criterion = make_loss(cfg, num_classes=num_classes)
-    
     optimizer, optimizer_center = make_optimizer(cfg, model, center_criterion)
-    
     scheduler = create_scheduler(cfg, optimizer)
+    
     try:
         do_train(
             cfg,
@@ -91,9 +105,8 @@ if __name__ == '__main__':
             args.local_rank
         )
     except Exception as e:
-        print("\n\n========== DETAILED ERROR INFORMATION ==========")
-        print(f"Error type: {type(e).__name__}")
-        print(f"Error message: {str(e)}")
+        print("\n========== DETAILED ERROR ==========")
+        print(f"Error: {type(e).__name__}: {str(e)}")
         traceback.print_exc()
-        print("================================================\n\n")
+        print("===================================\n")
         raise e
