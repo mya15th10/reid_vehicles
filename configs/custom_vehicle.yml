@@ -1,7 +1,7 @@
 MODEL:
   DEVICE: "cuda"
   NAME: 'feature_transformer'
-  FEATURE_DIM: 256  # FIXED: Match actual extracted feature dimension
+  FEATURE_DIM: 2048  # FIXED: Match actual extracted feature dimension
   LAST_STRIDE: 1
   PRETRAIN_PATH: ''
   PRETRAIN_CHOICE: 'imagenet'

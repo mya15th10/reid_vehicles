@@ -80,7 +80,7 @@ class build_feature_transformer(nn.Module):
         self.ID_LOSS_TYPE = cfg.MODEL.ID_LOSS_TYPE
         
         # FIXED: Correct feature dimensions
-        self.in_planes = 256  # Input feature dimension
+        self.in_planes = 2048  # Input feature dimension
         self.embedding_dim = 512  # Larger embedding for better performance
         
         print(f"Building FIXED feature-based model:")

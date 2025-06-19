@@ -56,7 +56,7 @@ class RCNNFeatureExtractor:
             T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
-        logger.info("R-CNN feature extractor initialized with 256-dim output")
+        logger.info("R-CNN feature extractor initialized with 2048-dim output")
     
     def extract_features(self, image_crop):
         """Extract 2048-dim features from image crop"""
