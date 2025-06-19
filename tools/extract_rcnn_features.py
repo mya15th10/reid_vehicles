@@ -313,79 +313,38 @@ class VehicleReIDDatasetBuilder:
     def create_reid_splits(self, features_data):
         """Create train/query/gallery splits for ReID"""
         
-        # Group by vehicle ID
+        # Group by vehicle ID (not camera!)
         by_vehicle = defaultdict(list)
         for item in features_data:
             by_vehicle[item['vehicle_id']].append(item)
         
-        # Separate cross-camera and single-camera vehicles
-        cross_camera_vehicles = []
-        single_camera_vehicles = []
-        
-        for vehicle_id, detections in by_vehicle.items():
-            cameras = set(item['camera_id'] for item in detections)
-            if len(cameras) > 1:
-                cross_camera_vehicles.append((vehicle_id, detections))
-            else:
-                single_camera_vehicles.append((vehicle_id, detections))
-        
-        logger.info(f"Cross-camera vehicles: {len(cross_camera_vehicles)}")
-        logger.info(f"Single-camera vehicles: {len(single_camera_vehicles)}")
-        
-        # Create splits
         train_data = []
         query_data = []
         gallery_data = []
         
-        # Use 70% of cross-camera vehicles for training
-        train_cross_camera = cross_camera_vehicles[:int(0.7 * len(cross_camera_vehicles))]
-        test_cross_camera = cross_camera_vehicles[int(0.7 * len(cross_camera_vehicles)):]
-        
-        # Training set: 70% cross-camera + all single-camera
-        for vehicle_id, detections in train_cross_camera:
-            train_data.extend(detections)
-        
-        for vehicle_id, detections in single_camera_vehicles:
-            train_data.extend(detections)
-        
-        # Test set: remaining cross-camera vehicles
-        for vehicle_id, detections in test_cross_camera:
-            # Split by camera for query/gallery
+        # For each vehicle, split its detections across train/query/gallery
+        for vehicle_id, detections in by_vehicle.items():
+            # Group by camera
             cam1_detections = [d for d in detections if d['camera_id'] == 1]
             cam2_detections = [d for d in detections if d['camera_id'] == 2]
             
-            if cam1_detections and cam2_detections:
-                query_data.extend(cam1_detections)  # Camera 1 as query
-                gallery_data.extend(cam2_detections)  # Camera 2 as gallery
-        
-        # Save splits
-        splits = {
-            'train': train_data,
-            'query': query_data,
-            'gallery': gallery_data
-        }
-        
-        for split_name, data in splits.items():
-            split_file = self.output_dir / f'{split_name}_features.pkl'
-            with open(split_file, 'wb') as f:
-                pickle.dump(data, f)
-            logger.info(f"Saved {len(data)} {split_name} features to {split_file}")
-    
-    def print_statistics(self):
-        """Print extraction statistics"""
-        
-        logger.info("="*60)
-        logger.info("FEATURE EXTRACTION STATISTICS")
-        logger.info("="*60)
-        logger.info(f"Total detections: {self.stats['total_detections']}")
-        logger.info(f"Successful extractions: {self.stats['successful_extractions']}")
-        logger.info(f"Failed extractions: {self.stats['failed_extractions']}")
-        
-        for camera_id, vehicles in self.stats['vehicles_by_camera'].items():
-            logger.info(f"Camera {camera_id}: {len(vehicles)} unique vehicles")
-        
-        logger.info(f"Cross-camera vehicles: {len(self.stats['cross_camera_vehicles'])}")
-        logger.info("="*60)
+            # Only use vehicles that appear in BOTH cameras
+            if len(cam1_detections) > 0 and len(cam2_detections) > 0:
+                # 80% of detections for training
+                train_count_cam1 = max(1, int(0.8 * len(cam1_detections)))
+                train_count_cam2 = max(1, int(0.8 * len(cam2_detections)))
+                
+                # Add to train set
+                train_data.extend(cam1_detections[:train_count_cam1])
+                train_data.extend(cam2_detections[:train_count_cam2])
+                
+                # Remaining for query/gallery (ensure cross-camera testing)
+                remaining_cam1 = cam1_detections[train_count_cam1:]
+                remaining_cam2 = cam2_detections[train_count_cam2:]
+                
+                if remaining_cam1 and remaining_cam2:
+                    query_data.extend(remaining_cam1)    # Cam1 as queries
+                    gallery_data.extend(remaining_cam2)  # Cam2 as gallery
 
 def main():
     """Main extraction pipeline"""
