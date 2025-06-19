@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+"""
+COMPLETE FIXED: R-CNN Feature Extraction Pipeline
+Extract features from video frames using CVAT annotations
+"""
 
 import xml.etree.ElementTree as ET
 import cv2
@@ -401,35 +406,35 @@ class VehicleReIDDatasetBuilder:
     def print_statistics(self):
         """Print dataset statistics"""
         print("\n" + "="*50)
-        print(" FEATURE EXTRACTION STATISTICS")
+        print("📊 FEATURE EXTRACTION STATISTICS")
         print("="*50)
         
-        print(f" Total detections processed: {self.stats['total_detections']}")
-        print(f" Successful extractions: {self.stats['successful_extractions']}")
-        print(f" Failed extractions: {self.stats['failed_extractions']}")
+        print(f"✅ Total detections processed: {self.stats['total_detections']}")
+        print(f"✅ Successful extractions: {self.stats['successful_extractions']}")
+        print(f"❌ Failed extractions: {self.stats['failed_extractions']}")
         
         # Per camera stats
         for camera_id, vehicles in self.stats['vehicles_by_camera'].items():
-            print(f"Camera {camera_id}: {len(vehicles)} unique vehicles")
+            print(f"📷 Camera {camera_id}: {len(vehicles)} unique vehicles")
         
-        print(f"Cross-camera vehicles: {len(self.stats['cross_camera_vehicles'])}")
-        print(f"Cross-camera coverage: {len(self.stats['cross_camera_vehicles'])/len(self.global_vehicle_mapping)*100:.1f}%")
+        print(f"🔗 Cross-camera vehicles: {len(self.stats['cross_camera_vehicles'])}")
+        print(f"📊 Cross-camera coverage: {len(self.stats['cross_camera_vehicles'])/len(self.global_vehicle_mapping)*100:.1f}%")
         print("="*50)
 
 def main():
     """Main extraction pipeline"""
     
-    # Configuration - Updated for your exact file paths
+    # Configuration
     config = {
         'xml_files': {
-            './raw/CustomVehicleDataset/annotations_11.xml': 1,  # Camera 1
-            './raw/CustomVehicleDataset/annotations_21.xml': 2,  # Camera 2
+            'data/raw/CustomVehicleDataset/annotations_11.xml': 1,  # Camera 1
+            'data/raw/CustomVehicleDataset/annotations_21.xml': 2,  # Camera 2
         },
         'video_files': {
-            1: './raw/CustomVehicleDataset/video11.MOV',  # Camera 1
-            2: './raw/CustomVehicleDataset/video21.MOV',  # Camera 2
+            1: 'data/raw/CustomVehicleDataset/video11.MOV',  # Camera 1
+            2: 'data/raw/CustomVehicleDataset/video21.MOV',  # Camera 2
         },
-        'output_dir': './data/processed/CustomVehicleDataset/features'
+        'output_dir': 'data/processed/CustomVehicleDataset/features'
     }
     
     # Create dataset builder
