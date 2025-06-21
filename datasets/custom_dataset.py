@@ -57,7 +57,7 @@ class CustomVehicleDataset(BaseImageDataset):
             raise RuntimeError("'{}' is not available".format(self.mapping_file))
 
     def _load_features(self, feature_file, is_train=False):
-        """FIXED: Load feature data with consistent PID mapping"""
+        """Load feature data with consistent PID mapping"""
         print(f"Loading features from {feature_file}")
         
         with open(feature_file, 'rb') as f:
@@ -67,9 +67,7 @@ class CustomVehicleDataset(BaseImageDataset):
         
         dataset = []
         for item in feature_data:
-            # Use pre-computed consistent PID
-            pid = item['pid']  # Already mapped during feature extraction
-            
+            pid = item['pid']
             camera_id = item['camera_id']
             features = item['features']
             
@@ -77,12 +75,24 @@ class CustomVehicleDataset(BaseImageDataset):
             camid = max(0, camera_id - 1)
             viewid = 0
             
-            # FIXED: Validate feature dimensions
+            # Validate feature dimensions
             if len(features) != 2048:
                 print(f"Warning: Expected 2048-dim features, got {len(features)}")
                 continue
             
             dataset.append((features, pid, camid, viewid))
+        
+        # FIXED: Ensure PIDs are continuous 0 to N-1
+        if dataset:
+            all_pids = [item[1] for item in dataset]
+            unique_pids = sorted(set(all_pids))
+            pid_remapping = {old_pid: new_pid for new_pid, old_pid in enumerate(unique_pids)}
+            
+            # Remap all PIDs to be continuous
+            dataset = [(features, pid_remapping[pid], camid, viewid) 
+                    for features, pid, camid, viewid in dataset]
+            
+            print(f"Remapped PIDs: {len(unique_pids)} classes (0 to {len(unique_pids)-1})")
         
         print(f"Processed {len(dataset)} valid feature vectors")
         return dataset
