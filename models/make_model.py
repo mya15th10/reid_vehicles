@@ -125,6 +125,7 @@ class build_feature_transformer(nn.Module):
         print(f"  - Classification head: {self.embedding_dim} -> {num_classes}")
 
     def forward(self, x, label=None, cam_label=None, view_label=None):
+        x = F.normalize(x, p=2, dim=1)
         # Input validation
         if len(x.shape) != 2 or x.shape[1] != self.in_planes:
             raise ValueError(f"Expected [batch_size, {self.in_planes}], got {x.shape}")
