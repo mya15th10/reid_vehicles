@@ -64,6 +64,15 @@ def do_train(cfg,
             
             with amp.autocast(enabled=True):
                 score, feat = model(img, label=target, cam_label=target_cam)
+                if n_iter == 0:  # Only print first batch of each epoch
+                    print(f"  DEBUG - Epoch {epoch}:")
+                    print(f"  Input shape: {img.shape}")
+                    print(f"  Input range: {img.min():.3f} to {img.max():.3f}")
+                    print(f"  Score shape: {score.shape}")
+                    print(f"  Score range: {score.min():.3f} to {score.max():.3f}")
+                    print(f"  Target range: {target.min()} to {target.max()}")
+                    print(f"  Target unique: {len(torch.unique(target))}")
+                    print(f"  Loss value: {loss.item():.6f}")
                 loss = loss_fn(score, feat, target, target_cam)
 
             scaler.scale(loss).backward()
