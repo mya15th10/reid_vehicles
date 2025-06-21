@@ -75,7 +75,9 @@ def do_train(cfg,
                     print(f"  Target unique: {len(torch.unique(target))}")
                     print(f"  Loss value: {loss.item():.6f}")
             scaler.scale(loss).backward()
-
+            # Add gradient clipping
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            
             scaler.step(optimizer)
             scaler.update()
 

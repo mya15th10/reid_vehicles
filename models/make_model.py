@@ -79,7 +79,6 @@ class build_feature_transformer(nn.Module):
         self.neck_feat = cfg.TEST.NECK_FEAT
         self.ID_LOSS_TYPE = cfg.MODEL.ID_LOSS_TYPE
         
-        # FIXED: Correct feature dimensions
         self.in_planes = 2048  # Input feature dimension
         self.embedding_dim = 512  # Larger embedding for better performance
         
@@ -129,7 +128,8 @@ class build_feature_transformer(nn.Module):
         # Input validation
         if len(x.shape) != 2 or x.shape[1] != self.in_planes:
             raise ValueError(f"Expected [batch_size, {self.in_planes}], got {x.shape}")
-        
+        #Normalize input features
+        x = F.normalize(x, p=2, dim=1)  # L2 normalize to unit length
         # Feature projection
         projected_feat = self.feature_projection(x)
         
