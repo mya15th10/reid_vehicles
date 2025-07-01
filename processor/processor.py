@@ -56,7 +56,7 @@ def do_train(cfg,
             target_view = target_view.to(device)
             with amp.autocast(enabled=True):
                 score, feat = model(img, target, cam_label=target_cam, view_label=target_view )
-                loss = loss_fn(score, feat, target, target_cam)
+                loss = loss_fn(score, feat, target)
 
             scaler.scale(loss).backward()
 
