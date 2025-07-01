@@ -58,8 +58,10 @@ def make_dataloader(cfg):
     num_workers = cfg.DATALOADER.NUM_WORKERS
 
     # Create dataset
-    dataset_name = cfg.DATASETS.NAMES[0]  # Should be 'custom_vehicle'
-    
+    if isinstance(cfg.DATASETS.NAMES, str):
+        dataset_name = cfg.DATASETS.NAMES
+    else:
+        dataset_name = cfg.DATASETS.NAMES[0]    
     if dataset_name not in __factory:
         raise KeyError(f"Unknown dataset: {dataset_name}")
     
