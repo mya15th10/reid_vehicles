@@ -138,6 +138,7 @@ class CustomVehicleDataset(BaseImageDataset):
         session2_crops = self._extract_vehicle_crops('session2')
         
         # Strategy: Use session1 for training, session2 for query/gallery
+        # For demo purposes, we'll also use some training data for testing
         
         train_data = []
         query_data = []
