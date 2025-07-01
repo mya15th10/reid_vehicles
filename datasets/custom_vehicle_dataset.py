@@ -132,43 +132,84 @@ class CustomVehicleDataset(BaseImageDataset):
         return crops
 
     def _create_dataset_splits(self):
-        """Create train/query/gallery splits from extracted crops"""
+        """Create train/query/gallery splits for multi-camera vehicle re-ID"""
         # Extract crops from both sessions
-        session1_crops = self._extract_vehicle_crops('session1')
-        session2_crops = self._extract_vehicle_crops('session2')
-        
-        # Strategy: Use session1 for training, session2 for query/gallery
-        # For demo purposes, we'll also use some training data for testing
+        session1_crops = self._extract_vehicle_crops('session1')  # video11, video12
+        session2_crops = self._extract_vehicle_crops('session2')  # video21, video22
         
         train_data = []
         query_data = []
         gallery_data = []
         
-        # Process session1 crops for training
+        # Vehicle ID mapping for consistent IDs across cameras
         vehicle_id_mapping = {}
         current_pid = 0
         
-        for crop in session1_crops:
+        # Strategy for multi-camera re-ID:
+        # Train: Camera 1 (video11 + video12) 
+        # Query: Camera 2, Time 1 (video21)
+        # Gallery: Camera 2, Time 2 (video22)
+        
+        # Process Camera 1 data for training (video11 + video12)
+        camera1_crops = [crop for crop in session1_crops]
+        
+        for crop in camera1_crops:
             original_id = crop['original_id']
             if original_id not in vehicle_id_mapping:
                 vehicle_id_mapping[original_id] = current_pid
                 current_pid += 1
             
             pid = vehicle_id_mapping[original_id]
-            camid = 0 if crop['video'] == 'video11' else 1
+            camid = 0 if crop['video'] == 'video11' else 1  # Different times, same camera
             
             train_data.append([
                 crop['image_path'],
                 pid,
                 camid,
+                0,  # trackid/viewid
                 crop['bbox']
             ])
         
-        # For demo: Use some training data as query/gallery (to get high accuracy)
-        # In real scenario, you'd use session2 data
-        # Make sure each item has exactly 4 elements for compatibility
-        query_data = [[item[0], item[1], item[2], 0] for item in train_data[:len(train_data)//4]]  # 25% as query
-        gallery_data = [[item[0], item[1], item[2], 0] for item in train_data[len(train_data)//4:]]  # 75% as gallery
+        # Process Camera 2 data for query/gallery (video21, video22)
+        camera2_crops = [crop for crop in session2_crops]
+        
+        video21_crops = [crop for crop in camera2_crops if crop['video'] == 'video21']
+        video22_crops = [crop for crop in camera2_crops if crop['video'] == 'video22']
+        
+        # Query: video21 (Camera 2, Time 1)
+        for crop in video21_crops:
+            original_id = crop['original_id']
+            if original_id in vehicle_id_mapping:  # Only use vehicles seen in training
+                pid = vehicle_id_mapping[original_id]
+                camid = 2  # Camera 2
+                
+                query_data.append([
+                    crop['image_path'],
+                    pid,
+                    camid,
+                    0,
+                    crop['bbox']
+                ])
+        
+        # Gallery: video22 (Camera 2, Time 2)  
+        for crop in video22_crops:
+            original_id = crop['original_id']
+            if original_id in vehicle_id_mapping:  # Only use vehicles seen in training
+                pid = vehicle_id_mapping[original_id]
+                camid = 3  # Camera 2, different time
+                
+                gallery_data.append([
+                    crop['image_path'],
+                    pid,
+                    camid,
+                    0,
+                    crop['bbox']
+                ])
+        
+        print(f"Multi-camera split created:")
+        print(f"- Training (Camera 1): {len(train_data)} samples")
+        print(f"- Query (Camera 2, Time 1): {len(query_data)} samples") 
+        print(f"- Gallery (Camera 2, Time 2): {len(gallery_data)} samples")
         
         return train_data, query_data, gallery_data
 
