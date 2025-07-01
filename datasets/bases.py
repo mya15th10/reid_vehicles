@@ -30,10 +30,12 @@ class BaseDataset(object):
     def get_imagedata_info(self, data):
         pids, cams, tracks = [], [], []
 
-        for _, pid, camid, trackid in data:
-            pids += [pid]
-            cams += [camid]
-            tracks += [trackid]
+        for item in data:
+            if len(item) >= 4:
+                _, pid, camid, trackid = item[:4]  # Take first 4 elements only
+                pids += [pid]
+                cams += [camid]
+                tracks += [trackid]
 
         pids = set(pids)
         cams = set(cams)
