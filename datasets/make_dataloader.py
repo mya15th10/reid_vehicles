@@ -3,7 +3,7 @@ import torchvision.transforms as T
 from torch.utils.data import DataLoader
 from .bases import ImageDataset
 from timm.data.random_erasing import RandomErasing
-from .sampler import RandomIdentitySampler, RandomIdentitySampler_DDP
+# Removed sampler imports - using default PyTorch samplers
 from .custom_vehicle_dataset import CustomVehicleDataset  # Import your custom dataset
 
 __factory = {
@@ -72,29 +72,13 @@ def make_dataloader(cfg):
     # Training dataset
     train_set = ImageDataset(dataset.train, train_transforms)
     
-    # Use RandomIdentitySampler for training
-    if 'triplet' in cfg.DATALOADER.SAMPLER:
-        if cfg.MODEL.DIST_TRAIN:
-            train_sampler = RandomIdentitySampler_DDP(
-                dataset.train, 
-                cfg.SOLVER.IMS_PER_BATCH, 
-                cfg.DATALOADER.NUM_INSTANCE
-            )
-        else:
-            train_sampler = RandomIdentitySampler(
-                dataset.train, 
-                cfg.SOLVER.IMS_PER_BATCH, 
-                cfg.DATALOADER.NUM_INSTANCE
-            )
-    elif cfg.MODEL.DIST_TRAIN:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_set)
-    else:
-        train_sampler = None
+    # Use simple shuffle sampler for training
+    train_sampler = None
 
     train_loader = DataLoader(
         train_set, 
         batch_size=cfg.SOLVER.IMS_PER_BATCH,
-        sampler=train_sampler, 
+        shuffle=True,  # Use simple shuffle
         num_workers=num_workers,
         collate_fn=train_collate_fn, 
         drop_last=True
