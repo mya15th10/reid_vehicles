@@ -3,16 +3,9 @@ MODEL:
   PRETRAIN_PATH: './jx_vit_base_p16_224-80ecf9dd.pth'
   METRIC_LOSS_TYPE: 'triplet'
   IF_LABELSMOOTH: 'on'
-  IF_WITH_CENTER: 'no'
   NAME: 'transformer'
-  NO_MARGIN: True
   DEVICE_ID: ('0')
   TRANSFORMER_TYPE: 'vit_base_patch16_224_TransReID'
-  STRIDE_SIZE: [16, 16]
-  SIE_CAMERA: True
-  SIE_VIEW: False
-  JPM: True
-  RE_ARRANGE: True
 
 INPUT:
   SIZE_TRAIN: [256, 128]
@@ -30,7 +23,7 @@ DATASETS:
 DATALOADER:
   SAMPLER: 'softmax_triplet'
   NUM_INSTANCE: 4
-  NUM_WORKERS: 8
+  NUM_WORKERS: 4
 
 SOLVER:
   OPTIMIZER_NAME: 'SGD'
@@ -38,23 +31,13 @@ SOLVER:
   BASE_LR: 0.008
   IMS_PER_BATCH: 32
   WEIGHT_DECAY: 1e-4
-  WEIGHT_DECAY_BIAS: 1e-4
-  BIAS_LR_FACTOR: 1
   MOMENTUM: 0.9
-  MARGIN: 0.3
   CHECKPOINT_PERIOD: 40
   LOG_PERIOD: 20
   EVAL_PERIOD: 40
-  WARMUP_FACTOR: 0.1
-  WARMUP_METHOD: 'linear'
-  FREEZE_EPOCH: 0
 
 TEST:
   EVAL: True
   IMS_PER_BATCH: 64
-  RE_RANKING: False
-  WEIGHT: './logs/custom_vehicle/transformer_120.pth'
-  NECK_FEAT: 'after'
-  FEAT_NORM: 'yes'
 
 OUTPUT_DIR: './logs/custom_vehicle/'
