@@ -119,7 +119,7 @@ def do_train(cfg,
                     torch.cuda.empty_cache()
             else:
                 model.eval()
-                for n_iter, (img, vid, camid, camids, target_view, _) in enumerate(val_loader):
+                for n_iter, (img, vid, camid, camids, target_view) in enumerate(val_loader):
                     with torch.no_grad():
                         img = img.to(device)
                         camids = camids.to(device)
