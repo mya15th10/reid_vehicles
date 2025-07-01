@@ -162,8 +162,9 @@ class CustomVehicleDataset(BaseImageDataset):
         
         # For demo: Use some training data as query/gallery (to get high accuracy)
         # In real scenario, you'd use session2 data
-        query_data = train_data[:len(train_data)//4]  # 25% as query
-        gallery_data = train_data[len(train_data)//4:]  # 75% as gallery
+        # Make sure each item has exactly 4 elements for compatibility
+        query_data = [[item[0], item[1], item[2], 0] for item in train_data[:len(train_data)//4]]  # 25% as query
+        gallery_data = [[item[0], item[1], item[2], 0] for item in train_data[len(train_data)//4:]]  # 75% as gallery
         
         return train_data, query_data, gallery_data
 
