@@ -53,7 +53,10 @@ def do_train(cfg,
             img = img.to(device)
             target = vid.to(device)
             target_cam = target_cam.to(device)
-            target_view = target_view.to(device)
+            if isinstance(target_view, tuple):
+                target_view = target_view[0].to(device)
+            else:
+                target_view = target_view.to(device)
             with amp.autocast(enabled=True):
                 score, feat = model(img, target, cam_label=target_cam, view_label=target_view )
                 loss = loss_fn(score, feat, target)
@@ -108,7 +111,10 @@ def do_train(cfg,
                         with torch.no_grad():
                             img = img.to(device)
                             camids = camids.to(device)
-                            target_view = target_view.to(device)
+                            if isinstance(target_view, tuple):
+                                target_view = target_view[0].to(device)
+                            else:
+                                target_view = target_view.to(device)
                             feat = model(img, cam_label=camids, view_label=target_view)
                             evaluator.update((feat, vid, camid))
                     cmc, mAP, _, _, _, _, _ = evaluator.compute()
@@ -123,7 +129,10 @@ def do_train(cfg,
                     with torch.no_grad():
                         img = img.to(device)
                         camids = camids.to(device)
-                        target_view = target_view.to(device)
+                        if isinstance(target_view, tuple):
+                            target_view = target_view[0].to(device)
+                        else:
+                            target_view = target_view.to(device)
                         feat = model(img, cam_label=camids, view_label=target_view)
                         evaluator.update((feat, vid, camid))
                 cmc, mAP, _, _, _, _, _ = evaluator.compute()
@@ -159,7 +168,10 @@ def do_inference(cfg,
         with torch.no_grad():
             img = img.to(device)
             camids = camids.to(device)
-            target_view = target_view.to(device)
+            if isinstance(target_view, tuple):
+                target_view = target_view[0].to(device)
+            else:
+                target_view = target_view.to(device)
             feat = model(img, cam_label=camids, view_label=target_view)
             evaluator.update((feat, pid, camid))
             img_path_list.extend(imgpath)
