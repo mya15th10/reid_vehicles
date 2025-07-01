@@ -103,7 +103,8 @@ def do_train(cfg,
             if cfg.MODEL.DIST_TRAIN:
                 if dist.get_rank() == 0:
                     model.eval()
-                    for n_iter, (img, vid, camid, camids, target_view, _) in enumerate(val_loader):
+                    for n_iter, (img, vid, camid, camids, target_view) in enumerate(val_loader):
+
                         with torch.no_grad():
                             img = img.to(device)
                             camids = camids.to(device)
