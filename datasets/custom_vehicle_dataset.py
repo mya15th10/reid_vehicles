@@ -45,7 +45,11 @@ class CustomVehicleDataset(BaseImageDataset):
         
         if verbose:
             print("=> CustomVehicleDataset loaded")
-            self.print_dataset_statistics(self.train, self.query, self.gallery)
+            try:
+                self.print_dataset_statistics(self.train, self.query, self.gallery)
+            except Exception as e:
+                print(f"Warning: Could not print statistics: {e}")
+                print(f"Train: {len(self.train)}, Query: {len(self.query)}, Gallery: {len(self.gallery)}")
 
     def _parse_xml_annotations(self, xml_file):
         """Parse XML annotations to extract vehicle information"""
@@ -134,7 +138,6 @@ class CustomVehicleDataset(BaseImageDataset):
         session2_crops = self._extract_vehicle_crops('session2')
         
         # Strategy: Use session1 for training, session2 for query/gallery
-        # For demo purposes, we'll also use some training data for testing
         
         train_data = []
         query_data = []
@@ -162,8 +165,9 @@ class CustomVehicleDataset(BaseImageDataset):
         
         # For demo: Use some training data as query/gallery (to get high accuracy)
         # In real scenario, you'd use session2 data
-        query_data = train_data[:len(train_data)//4]  # 25% as query
-        gallery_data = train_data[len(train_data)//4:]  # 75% as gallery
+        # Make sure each item has exactly 4 elements for compatibility
+        query_data = [[item[0], item[1], item[2], 0] for item in train_data[:len(train_data)//4]]  # 25% as query
+        gallery_data = [[item[0], item[1], item[2], 0] for item in train_data[len(train_data)//4:]]  # 75% as gallery
         
         return train_data, query_data, gallery_data
 
