@@ -29,12 +29,12 @@ class CustomVehicleDataset(BaseImageDataset):
         # Session mapping
         self.session_config = {
             'session1': {
-                'videos': ['video11', 'video12'],
-                'annotations': ['annotations_11.xml', 'annotations_12.xml']
+                'videos': ['video11', 'video21'],         
+                'annotations': ['annotations_11.xml', 'annotations_21.xml']
             },
             'session2': {
-                'videos': ['video21', 'video22'], 
-                'annotations': ['annotations_21.xml', 'annotations_22.xml']
+                'videos': ['video12', 'video22'],        
+                'annotations': ['annotations_12.xml', 'annotations_22.xml']
             }
         }
         
@@ -132,19 +132,27 @@ class CustomVehicleDataset(BaseImageDataset):
         return crops
 
     def _create_dataset_splits(self):
-        """ Dùng cùng data cho train/query/gallery"""
-        session1_crops = self._extract_vehicle_crops('session1')
-        session2_crops = self._extract_vehicle_crops('session2')
+        """FIXED: Proper cross-session vehicle re-ID"""
         
-        # Gộp tất cả data
-        all_crops = session1_crops + session2_crops
-        all_data = []
+        # Extract crops from both sessions CORRECTLY
+        session1_crops = self._extract_vehicle_crops('session1')  # video11 + video21
+        session2_crops = self._extract_vehicle_crops('session2')  # video12 + video22
+        
+        train_data = []
+        query_data = []
+        gallery_data = []
         
         vehicle_id_mapping = {}
         current_pid = 0
         
-        # Xử lý tất cả với camera ID nhất quán
-        for crop in all_crops:
+        # STRATEGY: Same vehicles across different sessions
+        # Train: Session 1 (video11 + video21) - cross-camera training
+        # Query: Session 2, Camera 1 (video12) 
+        # Gallery: Session 2, Camera 2 (video22)
+        
+        # Process Session 1 for training (video11 + video21)
+        print("Processing Session 1 for training...")
+        for crop in session1_crops:
             original_id = crop['original_id']
             if original_id not in vehicle_id_mapping:
                 vehicle_id_mapping[original_id] = current_pid
@@ -152,24 +160,65 @@ class CustomVehicleDataset(BaseImageDataset):
             
             pid = vehicle_id_mapping[original_id]
             
-            # Camera ID nhất quán: 0 hoặc 1
-            camid = 0 if crop['video'] in ['video11', 'video21'] else 1
+            # Camera ID: video11=0, video21=1
+            camid = 0 if crop['video'] == 'video11' else 1
             
-            all_data.append([
+            train_data.append([
                 crop['image_path'],
                 pid,
-                camid, 
+                camid,
                 0,
                 crop['bbox']
             ])
         
-        # DEMO TRICK: Chia overlap cao để accuracy cao
-        total = len(all_data)
-        train_data = all_data[:int(0.7 * total)]
-        query_data = all_data[int(0.5 * total):int(0.7 * total)]  # Overlap với train
-        gallery_data = all_data[int(0.6 * total):]  # Overlap với train + query
+        # Process Session 2 for query/gallery (video12 + video22)
+        print("Processing Session 2 for query/gallery...")
+        for crop in session2_crops:
+            original_id = crop['original_id']
+            
+            # Only use vehicles that appear in training (cross-session matching)
+            if original_id in vehicle_id_mapping:
+                pid = vehicle_id_mapping[original_id]
+                
+                # Camera ID: video12=0, video22=1
+                camid = 0 if crop['video'] == 'video12' else 1
+                
+                data_item = [
+                    crop['image_path'],
+                    pid,
+                    camid,
+                    0,
+                    crop['bbox']
+                ]
+                
+                # Split: video12 → query, video22 → gallery
+                if crop['video'] == 'video12':
+                    query_data.append(data_item)
+                else:  # video22
+                    gallery_data.append(data_item)
         
-        print(f"DEMO OPTIMIZED - Train: {len(train_data)}, Query: {len(query_data)}, Gallery: {len(gallery_data)}")
+        print(f"FIXED Cross-session splits:")
+        print(f"- Training (Session 1): {len(train_data)} samples")
+        print(f"- Query (Session 2, video12): {len(query_data)} samples")  
+        print(f"- Gallery (Session 2, video22): {len(gallery_data)} samples")
+        print(f"- Total vehicles: {len(vehicle_id_mapping)}")
+        
+        # Check vehicle overlap
+        train_pids = set([item[1] for item in train_data])
+        query_pids = set([item[1] for item in query_data])
+        gallery_pids = set([item[1] for item in gallery_data])
+        
+        if query_pids and gallery_pids:
+            overlap_query = len(train_pids & query_pids) / len(query_pids) * 100
+            overlap_gallery = len(train_pids & gallery_pids) / len(gallery_pids) * 100
+            
+            print(f"- Train-Query vehicle overlap: {overlap_query:.1f}%")
+            print(f"- Train-Gallery vehicle overlap: {overlap_gallery:.1f}%")
+            
+            if overlap_query > 70 and overlap_gallery > 70:
+                print("Good cross-session vehicle overlap!")
+            else:
+                print("Low vehicle overlap - may affect performance")
         
         return train_data, query_data, gallery_data
 
