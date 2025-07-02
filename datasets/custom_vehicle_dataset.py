@@ -196,7 +196,9 @@ class CustomVehicleDataset(BaseImageDataset):
         for crop in video21_crops:
             video21_by_vehicle[crop['vehicle_id']].append(crop)
         
-        # Split each vehicle's data
+        # Split each vehicle's data - ENSURE PERFECT QUERY-GALLERY MATCH
+        vehicles_with_test_data = []
+        
         for vehicle_id in cross_camera_vehicles:
             pid = vehicle_id_mapping[vehicle_id]
             
@@ -206,34 +208,54 @@ class CustomVehicleDataset(BaseImageDataset):
             
             # Skip vehicles that don't appear in both cameras
             if len(v11_crops) == 0 or len(v21_crops) == 0:
+                print(f"Warning: Vehicle {vehicle_id} missing in one camera: v11={len(v11_crops)}, v21={len(v21_crops)}")
                 continue
             
             # Use percentage split: 80% train, 20% test
-            # Only create test samples if vehicle has enough data
+            # Only create test samples if vehicle has enough data IN BOTH CAMERAS
             min_samples_for_test = 3  # Need at least 3 samples to split
             
-            # Split video11 crops
-            if len(v11_crops) >= min_samples_for_test:
+            # Check if BOTH cameras have enough samples for testing
+            can_create_test = (len(v11_crops) >= min_samples_for_test and 
+                             len(v21_crops) >= min_samples_for_test)
+            
+            if can_create_test:
+                # Split video11 crops
                 v11_train_count = int(len(v11_crops) * train_ratio)
                 v11_train = v11_crops[:v11_train_count]
                 v11_test = v11_crops[v11_train_count:]
-            else:
-                # Too few samples, use all for training
-                v11_train = v11_crops
-                v11_test = []
-            
-            # Split video21 crops  
-            if len(v21_crops) >= min_samples_for_test:
+                
+                # Split video21 crops  
                 v21_train_count = int(len(v21_crops) * train_ratio)
                 v21_train = v21_crops[:v21_train_count]
                 v21_test = v21_crops[v21_train_count:]
+                
+                # Record this vehicle for test set
+                vehicles_with_test_data.append({
+                    'vehicle_id': vehicle_id,
+                    'pid': pid,
+                    'v11_train': v11_train,
+                    'v21_train': v21_train,
+                    'v11_test': v11_test,
+                    'v21_test': v21_test
+                })
             else:
-                # Too few samples, use all for training
-                v21_train = v21_crops
-                v21_test = []
+                # Use all samples for training
+                vehicles_with_test_data.append({
+                    'vehicle_id': vehicle_id,
+                    'pid': pid,
+                    'v11_train': v11_crops,
+                    'v21_train': v21_crops,
+                    'v11_test': [],
+                    'v21_test': []
+                })
+        
+        # Now create the actual data splits
+        for vehicle_data in vehicles_with_test_data:
+            pid = vehicle_data['pid']
             
-            # Add to training (both cameras)
-            for crop in v11_train:
+            # Add training data (both cameras)
+            for crop in vehicle_data['v11_train']:
                 train_data.append([
                     crop['image_path'],
                     pid,
@@ -242,7 +264,7 @@ class CustomVehicleDataset(BaseImageDataset):
                     crop['bbox']
                 ])
                 
-            for crop in v21_train:
+            for crop in vehicle_data['v21_train']:
                 train_data.append([
                     crop['image_path'],
                     pid,
@@ -251,25 +273,27 @@ class CustomVehicleDataset(BaseImageDataset):
                     crop['bbox']
                 ])
             
-            # Add to query (video11 test data)
-            for crop in v11_test:
-                query_data.append([
-                    crop['image_path'],
-                    pid,
-                    0,  # camera_id
-                    0,  # trackid
-                    crop['bbox']
-                ])
-            
-            # Add to gallery (video21 test data)
-            for crop in v21_test:
-                gallery_data.append([
-                    crop['image_path'],
-                    pid,
-                    1,  # camera_id
-                    0,  # trackid
-                    crop['bbox']
-                ])
+            # Add test data ONLY if BOTH cameras have test samples
+            if len(vehicle_data['v11_test']) > 0 and len(vehicle_data['v21_test']) > 0:
+                # Add to query (video11 test data)
+                for crop in vehicle_data['v11_test']:
+                    query_data.append([
+                        crop['image_path'],
+                        pid,
+                        0,  # camera_id
+                        0,  # trackid
+                        crop['bbox']
+                    ])
+                
+                # Add to gallery (video21 test data)
+                for crop in vehicle_data['v21_test']:
+                    gallery_data.append([
+                        crop['image_path'],
+                        pid,
+                        1,  # camera_id
+                        0,  # trackid
+                        crop['bbox']
+                    ])
         
         print(f"\n=== DATASET SPLITS SUMMARY ===")
         print(f"Cross-camera vehicles used: {len(cross_camera_vehicles)}")
