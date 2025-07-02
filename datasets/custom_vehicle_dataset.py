@@ -117,7 +117,7 @@ class CustomVehicleDataset(BaseImageDataset):
                 if os.path.exists(image_path):
                     for vehicle in annotation['vehicles']:
                         # Create unique identifier
-                        vehicle_id = f"{session_name}_{video_name}_{vehicle['vehicle_id']}"
+                        vehicle_id = vehicle['vehicle_id']
                         
                         crops.append({
                             'image_path': image_path,
@@ -132,7 +132,6 @@ class CustomVehicleDataset(BaseImageDataset):
         return crops
 
     def _create_dataset_splits(self):
-        """FIXED: Proper cross-session vehicle re-ID"""
         
         # Extract crops from both sessions CORRECTLY
         session1_crops = self._extract_vehicle_crops('session1')  # video11 + video21
