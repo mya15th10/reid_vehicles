@@ -124,7 +124,8 @@ def do_train(cfg,
                         img = img.to(device)
                         camids = camids.to(device)
                         target_view = torch.zeros(img.shape[0]).long().to(device)
-                        feat = model(img, cam_label=camids, view_label=target_view) 
+                        feat = model(img, cam_label=camids, view_label=target_view)
+
                         evaluator.update((feat, vid, camid))
                 cmc, mAP, _, _, _, _, _ = evaluator.compute()
                 logger.info("Validation Results - Epoch: {}".format(epoch))

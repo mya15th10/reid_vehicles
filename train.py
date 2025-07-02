@@ -66,7 +66,8 @@ if __name__ == '__main__':
     train_loader, val_loader, num_query, num_classes, camera_num, view_num = make_dataloader(cfg)
 
 
-    model = make_model(cfg, num_class=num_classes, camera_num=camera_num, view_num = view_num)
+    model = make_model(cfg, num_class=num_classes, camera_num=camera_num, view_num=view_num)
+
 
     loss_func, center_criterion = make_loss(cfg, num_classes=num_classes)
 
