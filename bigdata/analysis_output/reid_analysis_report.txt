@@ -1,0 +1,48 @@
+Vehicle Re-Identification System Analysis Report
+==================================================
+
+Generated at: 2025-07-04 09:10:09.172164
+
+1. DETECTION STATISTICS
+-------------------------
+Total detections: 0
+Unique local vehicle IDs: 0
+Global vehicle IDs: 0
+
+Detections per camera:
+
+Vehicle type distribution:
+
+
+2. CROSS-CAMERA RE-IDENTIFICATION
+-----------------------------------
+Cross-camera vehicles: 0
+Single-camera vehicles: 0
+Cross-camera rate: 0.000
+
+
+
+3. PERFORMANCE EVALUATION
+-------------------------
+Ground truth vehicles: 1132
+Predicted global IDs: 0
+
+Camera-wise performance:
+  Camera 11:
+    Precision: 0.000
+    Recall: 0.000
+    F1-Score: 0.000
+  Camera 21:
+    Precision: 0.000
+    Recall: 0.000
+    F1-Score: 0.000
+
+
+4. SYSTEM OVERVIEW
+------------------
+Cameras analyzed: 2
+  Camera11 (ID: 11)
+  Camera21 (ID: 21)
+
+Results file: None
+ReID state directory: ./reid_state
